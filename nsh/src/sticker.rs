@@ -10,6 +10,9 @@ use crate::{
     runtime, ui,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone, Copy)]
 struct Visible(Memo<bool>);
 
@@ -27,7 +30,7 @@ pub(crate) fn asset(
 }
 
 /// A sticker in a frame of the caller's `(width, height)`. Without an account, as
-/// in the debug preview, it shows raster assets and cannot refresh a failed one.
+/// in the debug preview, raster and inline JSON assets work without a refresh service.
 pub(crate) fn framed_asset(
     account: Option<Arc<AccountClient>>,
     source: impl Fn() -> (Option<String>, String, String) + 'static,
@@ -71,23 +74,24 @@ pub(crate) fn framed_asset(
                 });
             });
             let client = account.with(|value| value.clone());
-            let animation = kind.eq_ignore_ascii_case("json");
-            let child = if url.is_empty() || (animation && client.is_none()) {
-                let fail = fail.clone();
-                effect(move || fail());
-                view().hidden().into_element()
-            } else if let Some(client) = client.filter(|_| animation) {
-                animated(client, url, frame, failed, fail).into_element()
-            } else {
-                let fail = fail.clone();
-                image(url)
-                    .w(width)
-                    .h(height)
-                    .object_fit(ResizeMode::Contain)
-                    .label(move || i18n.text(Key::Sticker))
-                    .on_error(move |_: &str| fail())
-                    .into_element()
-            };
+            let animation = is_animation(&kind, &url);
+            let child =
+                if url.is_empty() || (animation && client.is_none() && !url.starts_with("data:")) {
+                    let fail = fail.clone();
+                    effect(move || fail());
+                    view().hidden().into_element()
+                } else if animation {
+                    animated(client, url, frame, failed, fail).into_element()
+                } else {
+                    let fail = fail.clone();
+                    image(url)
+                        .w(width)
+                        .h(height)
+                        .object_fit(ResizeMode::Contain)
+                        .label(move || i18n.text(Key::Sticker))
+                        .on_error(move |_: &str| fail())
+                        .into_element()
+                };
             view()
                 .w(width)
                 .h(height)
@@ -129,7 +133,7 @@ pub(crate) fn framed_album_icon(
 }
 
 fn animated(
-    account: Arc<AccountClient>,
+    account: Option<Arc<AccountClient>>,
     url: String,
     size: (f32, f32),
     failed: Signal<bool>,
@@ -138,6 +142,7 @@ fn animated(
     let i18n = i18n::current();
     let security = use_context::<crate::security::Handle>();
     let visible = use_context::<Visible>();
+    let media = crate::media_client();
     let animation = signal_with(None::<StickerAnimationClient>, SignalEquals::Never);
     let frame = signal(SharedString::default());
     // The component/virtual cell owner cancels both network work and playback.
@@ -146,24 +151,38 @@ fn animated(
         let account = account.clone();
         let url = url.clone();
         let fail = load_fail.clone();
+        let media = media.clone();
         let pixels = (size.0.max(size.1) * pixel_ratio())
             .ceil()
             .clamp(1.0, 512.0) as u32;
         spawn(async move {
-            match runtime::run(async move { account.sticker_animation(url, pixels).await }).await {
+            match runtime::run(async move {
+                if url.starts_with("data:") {
+                    media.sticker_animation_data(url, pixels).await
+                } else if let Some(account) = account {
+                    account.sticker_animation(url, pixels).await
+                } else {
+                    Err(mixin_desktop_api::ClientError::Cancelled)
+                }
+            })
+            .await
+            {
                 Ok(value) => animation.set(Some(value)),
                 Err(_) => fail(),
             }
         });
     });
     let render_fail = fail.clone();
-    effect(move || {
-        let loaded = animation.get();
-        let playing = !failed.get()
+    let playing = computed(move || {
+        !failed.get()
             && !reduce_motion()
             && lifecycle() != Lifecycle::Background
             && visible.is_none_or(|visible| visible.0.get())
-            && !security.is_some_and(|security| security.blocked());
+            && !security.is_some_and(|security| security.blocked())
+    });
+    effect(move || {
+        let loaded = animation.get();
+        let playing = playing.get();
         let Some(animation) = loaded else { return };
         frame.set(animation.first_frame().into());
         if !playing {
@@ -190,15 +209,34 @@ fn animated(
             }
         });
     });
-    image(move || frame.get())
-        // The caller's bitmap size: physical geometry, not a design token.
-        .w(px(size.0))
-        .h(px(size.1))
-        .object_fit(ResizeMode::Contain)
-        .label(move || i18n.text(Key::Sticker))
-        .on_error(move |_: &str| {
-            if !frame.get_untracked().is_empty() {
-                fail();
-            }
-        })
+    when(
+        move || !frame.get().is_empty(),
+        move || {
+            let fail = fail.clone();
+            image(move || frame.get())
+                // The caller's bitmap size: physical geometry, not a design token.
+                .w(px(size.0))
+                .h(px(size.1))
+                .object_fit(ResizeMode::Contain)
+                .label(move || i18n.text(Key::Sticker))
+                .on_error(move |_: &str| {
+                    if !frame.get_untracked().is_empty() {
+                        fail();
+                    }
+                })
+        },
+    )
+}
+
+fn is_animation(kind: &str, url: &str) -> bool {
+    let kind = kind.split(';').next().unwrap_or_default().trim();
+    kind.eq_ignore_ascii_case("json")
+        || kind.eq_ignore_ascii_case("application/json")
+        || kind.eq_ignore_ascii_case("application/lottie+json")
+        || url.starts_with("data:application/json;")
+        || url.starts_with("data:application/lottie+json;")
+        || url
+            .split(['?', '#'])
+            .next()
+            .is_some_and(|path| path.to_ascii_lowercase().ends_with(".json"))
 }

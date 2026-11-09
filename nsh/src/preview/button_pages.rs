@@ -665,28 +665,29 @@ pub(super) fn emoji(actions: Actions) -> View {
 }
 
 pub(super) const LOGIN_ACTIONS: &[&str] = &["Error", "Startup error", "Reset"];
+pub(super) const STICKER_DETAIL_ACTIONS: &[&str] =
+    &["Animation", "Not added", "No album", "Error", "Reset"];
 pub(super) fn sticker_detail(actions: Actions) -> View {
     prepare();
-    let (_, _, failed) = state(actions);
-    dialog_host(
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .child(ui::dialog_close(|| {}))
-            .child(crate::composer::preview_sticker_detail(
-                mixin_desktop_api::StickerItem {
-                    sticker_id: "preview-sticker".into(),
-                    album_id: None,
-                    name: "Design sticker".into(),
-                    asset_url: fixtures::sticker_image(0),
-                    asset_width: 256,
-                    asset_height: 256,
-                    asset_type: "png".into(),
-                    created_at_millis: 0,
-                    last_use_at_millis: None,
-                },
-                failed,
-            )),
-    )
+    let mode = mode(actions, STICKER_DETAIL_ACTIONS);
+    dialog_host(dynamic(move || {
+        let mode = mode.get();
+        untracked(|| {
+            let mut detail = fixtures::sticker_detail();
+            match mode {
+                "Animation" => detail.sticker = detail.album_stickers[0].clone(),
+                "Not added" => detail.album.as_mut().unwrap().added = false,
+                "No album" => {
+                    detail.album = None;
+                    detail.album_stickers.clear();
+                }
+                _ => {}
+            }
+            crate::composer::preview_sticker_detail(detail, signal(mode == "Error"))
+        })
+    }))
 }
+
 pub(super) fn markdown_attachment(actions: Actions) -> View {
     prepare();
     let (_, _, failed) = state(actions);

@@ -142,6 +142,7 @@
       "sticker-panel-height": "407px",
       "sticker-cell-size": "96px",
       "sticker-art-size": "80px",
+      "sticker-detail-art-size": "256px",
       "sticker-tab-bar-height": "50px",
       "sticker-tab-size": "40px",
       "card-width": "260px"

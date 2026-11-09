@@ -446,7 +446,13 @@ pub(super) mod messages {
             })
             .to_string(),
         );
-        timeline(vec![video, sticker(me()), location])
+        let mut animated = sticker(person(1));
+        animated.sticker_id = Some("00000000-0000-4000-8000-000000000901".into());
+        animated.sticker_asset_url = Some(super::animated_sticker());
+        animated.sticker_asset_type = Some("JSON".into());
+        animated.sticker_asset_width = Some(96);
+        animated.sticker_asset_height = Some(96);
+        timeline(vec![video, sticker(me()), animated, location])
     }
 
     /// Voice messages and files, downloaded or not.
@@ -917,4 +923,43 @@ pub(super) fn picker_users() -> Vec<mixin_desktop_api::UserProfileItem> {
         rows.push(user);
     }
     rows
+}
+
+pub(super) fn animated_sticker() -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    format!(
+        "data:application/json;base64,{}",
+        STANDARD.encode(include_bytes!("../../preview/fixtures/moving-sticker.json"))
+    )
+}
+
+pub(super) fn sticker_detail() -> mixin_desktop_api::StickerDetailItem {
+    let album = sticker_store_albums().remove(0);
+    let items = (0..12)
+        .map(|index| mixin_desktop_api::StickerItem {
+            sticker_id: format!("00000000-0000-4000-8000-{:012}", index + 901),
+            album_id: Some(album.album_id.clone()),
+            name: format!("Sticker {}", index + 1),
+            asset_url: if index == 0 {
+                animated_sticker()
+            } else {
+                sticker_image(index)
+            },
+            asset_width: 256,
+            asset_height: 256,
+            asset_type: if index == 0 {
+                "json".into()
+            } else {
+                "png".into()
+            },
+            created_at_millis: 0,
+            last_use_at_millis: None,
+        })
+        .collect::<Vec<_>>();
+    mixin_desktop_api::StickerDetailItem {
+        sticker: items[1].clone(),
+        album: Some(album),
+        album_stickers: items,
+        is_personal: false,
+    }
 }

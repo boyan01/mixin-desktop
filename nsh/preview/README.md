@@ -8,7 +8,7 @@ use different treatments.
 There are 82 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 190 captures, grouped by scene and state. `--scenes`
+The full catalog contains 193 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -142,3 +142,24 @@ The captures show layout and bounded camera states, not physical trackpad gestur
 smoothness. Pure camera tests cover pointer anchoring, per-axis bounds, resize,
 rotation, invalid input and clamped input reversal. Windows/Linux wheel and pinch
 input are not yet implemented by the app-owned adapter.
+
+## Sticker detail review
+
+`sticker-detail` renders the production dialog with a close control in its top
+right corner. Album metadata and its Add/Remove command sit below the artwork.
+The remaining stickers occupy one horizontal virtual list. Selecting a thumbnail
+changes the large preview without sending a message. The initial strip position
+keeps the opened sticker visible. Thumbnails are static posters; the selected
+JSON sticker plays in the large preview.
+
+`Animation`, `Not added`, `No album`, and `Error` are states of this same scene.
+Album commands in this account-free fixture update fixture state only. The live
+entry uses the shared album subscription API. `messages-media` also includes an
+authored inline Lottie fixture, so message playback can be checked without an
+account or network. Reduced motion, background lifecycle, screen lock and message
+viewability still pause playback.
+
+Targeted native captures are under `output/button-review/sticker-redesign-after/`,
+`sticker-redesign-light/`, and `sticker-redesign-narrow/`. The baseline is preserved
+in `sticker-redesign-before/`. These captures do not verify a live account's
+network download or album subscription changes, nor Windows/Linux rendering.

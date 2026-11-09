@@ -349,6 +349,7 @@ fn detail_card(
     let qr = move || shown.with(|detail| matches!(detail, Some(Detail::Qr(_))));
     let user_profile = move || shown.with(|detail| matches!(detail, Some(Detail::User(_))));
     let photo = move || shown.with(|detail| matches!(detail, Some(Detail::Image { .. })));
+    let sticker = move || shown.with(|detail| matches!(detail, Some(Detail::Sticker(_))));
 
     view()
         .bg(ui::surface_pane)
@@ -383,13 +384,26 @@ fn detail_card(
                 .gap_0()
                 .overflow_hidden()
         })
+        .style_when(sticker, |style| {
+            style
+                .flex_auto()
+                .flex_grow(0.0)
+                .w(ui::dialog_width_regular())
+                .max_w(relative(1.0))
+                .p_0()
+                .gap_0()
+                .bg(|| ui::surface_popover().opacity(0.0))
+        })
         .child(
             view()
                 .flex_row()
                 .justify_end()
                 .gap_2()
                 .style_when(qr, |style| style.items_center())
-                .style_when(move || user_profile() || photo(), |style| style.hidden())
+                .style_when(
+                    move || user_profile() || photo() || sticker(),
+                    |style| style.hidden(),
+                )
                 .child(when(qr, move || {
                     ui::dialog_title(move || i18n.tr("QR code", "二维码"))
                         .flex_1()
@@ -454,6 +468,7 @@ fn detail_card(
                 Some(Detail::Sticker(sticker_id)) => crate::composer::sticker_detail(
                     actions.account.with(|value| value.clone()),
                     sticker_id,
+                    move || actions.close_preview(),
                 )
                 .into_element(),
                 Some(Detail::User(id)) => crate::conversation::profile(
@@ -503,7 +518,10 @@ fn detail_card(
             })
             .text_role(ui::TextRole::Body)
             .select_text()
-            .style_when(move || user_profile() || photo(), |style| style.hidden()),
+            .style_when(
+                move || user_profile() || photo() || sticker(),
+                |style| style.hidden(),
+            ),
         )
 }
 #[cfg(debug_assertions)]

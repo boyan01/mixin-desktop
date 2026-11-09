@@ -101,3 +101,33 @@ fn a_transparent_rectangular_composition_is_centered_without_darkening_its_color
             assert!((127..=128).contains(&center[3]));
         });
 }
+
+#[test]
+fn inline_json_preserves_animation_and_rejects_invalid_or_oversized_sources() {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let uri = format!(
+                "data:application/json;base64,{}",
+                STANDARD.encode(MOVING_SQUARE)
+            );
+            let animation = StickerAnimation::from_data_uri(uri, 32).await.unwrap();
+            assert_ne!(
+                pixels(&animation.first_frame),
+                pixels(&animation.frame(1000).await.unwrap())
+            );
+            for uri in [
+                "data:image/png;base64,e30=".to_owned(),
+                "data:application/json;base64,%%%".to_owned(),
+                format!("data:application/json;base64,{}", STANDARD.encode(b"{}")),
+                format!(
+                    "data:application/json;base64,{}",
+                    "A".repeat(MAX_STICKER_BYTES.div_ceil(3) * 4 + 81)
+                ),
+            ] {
+                assert!(StickerAnimation::from_data_uri(uri, 32).await.is_err());
+            }
+        });
+}

@@ -435,7 +435,7 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "sticker-detail",
-        actions: button_pages::ERROR_ACTIONS,
+        actions: button_pages::STICKER_DETAIL_ACTIONS,
         mount: button_pages::sticker_detail,
     },
     Scene {

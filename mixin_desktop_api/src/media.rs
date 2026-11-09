@@ -30,6 +30,17 @@ pub struct MediaClient {
 }
 
 impl MediaClient {
+    /// Loads a self-contained inline Lottie composition through the shared renderer.
+    pub async fn sticker_animation_data(
+        &self,
+        uri: String,
+        pixels: u32,
+    ) -> ClientResult<StickerAnimationClient> {
+        Ok(StickerAnimationClient(
+            mixin_desktop_media::sticker::StickerAnimation::from_data_uri(uri, pixels).await?,
+        ))
+    }
+
     /// Decodes an inline image or BlurHash placeholder within shared resource limits.
     pub async fn thumbnail_image(&self, data: String) -> ClientResult<Option<String>> {
         Ok(mixin_desktop_media::thumbnail::image(data).await?)

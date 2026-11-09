@@ -1,13 +1,10 @@
 mod album_order;
 
-use mixin_desktop_api::{AccountClient, StickerAlbumItem, StickerDetailItem, StickerItem};
+use mixin_desktop_api::{AccountClient, StickerAlbumItem, StickerDetailItem};
 use nsh_core::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
-use super::{
-    stickers::{State, Tab},
-    tr,
-};
+use super::{stickers::State, tr};
 use crate::{
     i18n::{self, Key},
     runtime,
@@ -387,168 +384,354 @@ pub(crate) fn detached(
     )
 }
 
-pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl IntoElement {
-    let i18n = i18n::current();
-    // The detail grid selects a preview. Its callbacks never send a message.
-    let state = State::new(account, String::new(), true, signal(false));
+pub(crate) fn detail(
+    account: Arc<AccountClient>,
+    sticker_id: String,
+    close: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
+    let state = State::new(account.clone(), String::new(), true, signal(false));
     state.observe_updates();
-    let selected = signal(sticker_id);
+    let selected = signal(sticker_id.clone());
+    let requested = stored(sticker_id);
     let details = signal_with(None::<StickerDetailItem>, SignalEquals::Never);
-    let items = signal_with(Vec::<StickerItem>::new(), SignalEquals::Never);
-    let loading = signal(true);
     effect(move || {
         state.revision.get();
-        let id = selected.get();
+        let id = requested.get();
         let client = state.client();
-        loading.set(true);
         spawn(async move {
-            match runtime::run(async move {
-                let detail = client.sticker().sticker_detail(id).await?;
-                let albums = client.sticker().sticker_albums().await?;
-                Ok((detail, albums))
-            })
-            .await
-            {
-                Ok((detail, albums)) => {
-                    state.albums.set(albums);
-                    items.set(if detail.album.is_some() {
-                        detail.album_stickers.clone()
-                    } else {
-                        vec![detail.sticker.clone()]
-                    });
-                    details.set(Some(detail));
-                }
+            match runtime::run(async move { client.sticker().sticker_detail(id).await }).await {
+                Ok(detail) => details.set(Some(detail)),
                 Err(_) => state.failed.set(true),
             }
-            loading.set(false);
         });
     });
     detail_view(
+        Some(account),
         details,
+        selected,
+        state.busy,
         state.failed,
         move || {
             state.failed.set(false);
             state.reload();
         },
-        view().items_center().child(crate::sticker::asset(
-            state.client(),
-            move || {
-                details.with(|detail| {
-                    detail
-                        .as_ref()
-                        .map(|detail| {
-                            (
-                                Some(detail.sticker.sticker_id.clone()),
-                                detail.sticker.asset_url.clone(),
-                                detail.sticker.asset_type.clone(),
-                            )
-                        })
-                        .unwrap_or_default()
-                })
-            },
-            256.0,
-        )),
-        dynamic(move || {
-            let detail = details.get();
-            untracked(|| match detail {
-                Some(StickerDetailItem {
-                    album: Some(album), ..
-                }) => super::stickers::grid_items(
-                    state,
-                    stored(Tab::Album(album.album_id)),
-                    items,
-                    loading,
-                    Some(selected),
-                    move |sticker| selected.set(sticker.sticker_id),
-                )
-                .into_element(),
-                Some(_) => view().hidden().into_element(),
-                None => text(move || {
-                    if state.failed.get() {
-                        i18n.text(Key::CommandFailed)
-                    } else {
-                        tr(i18n, "Loading stickers…", "正在加载贴纸…")
-                    }
-                })
-                .text_role(ui::TextRole::Body)
-                .into_element(),
-            })
-        }),
+        move |id, added| {
+            let client = state.client();
+            state.update(async move { client.sticker().set_sticker_album_added(id, added).await });
+        },
+        close,
     )
 }
 
-pub(crate) fn detail_retry(retry: impl Fn() + 'static) -> nsh_base::ButtonElement {
-    let i18n = i18n::current();
-    ui::link(move || i18n.text(Key::Retry), retry)
-}
-
+#[allow(clippy::too_many_arguments)]
 fn detail_view(
+    account: Option<Arc<AccountClient>>,
     details: Signal<Option<StickerDetailItem>>,
+    selected: Signal<String>,
+    busy: Signal<bool>,
     failed: Signal<bool>,
     retry: impl Fn() + Copy + 'static,
-    artwork: impl IntoElement,
-    items: impl IntoElement,
+    toggle: impl Fn(String, bool) + Copy + 'static,
+    close: impl Fn() + Copy + 'static,
 ) -> View {
-    view()
-        .flex_1()
-        .min_h_0()
-        .w_full()
-        .gap_3()
-        .child(
-            text(move || {
-                details.with(|detail| {
-                    detail
-                        .as_ref()
-                        .map(|detail| {
-                            detail.album.as_ref().map_or_else(
-                                || detail.sticker.name.clone(),
-                                |album| album.name.clone(),
-                            )
-                        })
-                        .unwrap_or_default()
-                })
+    let i18n = i18n::current();
+    let account = stored(account);
+    let active = move || {
+        details.with(|detail| {
+            detail.as_ref().map(|detail| {
+                detail
+                    .album_stickers
+                    .iter()
+                    .find(|item| item.sticker_id == selected.get())
+                    .unwrap_or(&detail.sticker)
+                    .clone()
             })
-            .text_role(ui::TextRole::Body)
-            .text_emphasis(),
+        })
+    };
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .p_0()
+        .gap_0()
+        .overflow_hidden()
+        .child(ui::dialog_close(close))
+        .child(
+            scroll().flex_shrink(1.0).min_h_0().child(
+                view()
+                    .child(
+                        view()
+                            .items_center()
+                            .py(ui::space_lg())
+                            .child(when(
+                                move || active().is_some(),
+                                move || {
+                                    crate::sticker::framed_asset(
+                                        account.get(),
+                                        move || {
+                                            active()
+                                                .map(|item| {
+                                                    (
+                                                        Some(item.sticker_id.clone()),
+                                                        item.asset_url.clone(),
+                                                        item.asset_type.clone(),
+                                                    )
+                                                })
+                                                .unwrap_or_default()
+                                        },
+                                        (
+                                            ui::sticker_detail_art_size().0,
+                                            ui::sticker_detail_art_size().0,
+                                        ),
+                                    )
+                                },
+                            ))
+                            .child(when(
+                                move || active().is_none() && !failed.get(),
+                                move || {
+                                    text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…"))
+                                        .text_role(ui::TextRole::Body)
+                                        .text_color(ui::fg_secondary)
+                                        .py(ui::space_xl())
+                                },
+                            )),
+                    )
+                    .child(when(
+                        move || {
+                            details.with(|detail| {
+                                detail.as_ref().is_some_and(|detail| detail.album.is_some())
+                            })
+                        },
+                        move || {
+                            view()
+                                .flex_none()
+                                .child(ui::divider().mx_0().my_0())
+                                .child(
+                                    view()
+                                        .flex_row()
+                                        .items_center()
+                                        .gap(ui::space_md())
+                                        .p(ui::space_lg())
+                                        .child(crate::sticker::framed_album_icon(
+                                            account.get(),
+                                            move || {
+                                                details.with(|detail| {
+                                                    detail
+                                                        .as_ref()
+                                                        .and_then(|detail| detail.album.as_ref())
+                                                        .map(|album| album.icon_url.clone())
+                                                        .unwrap_or_default()
+                                                })
+                                            },
+                                            ALBUM_ICON,
+                                        ))
+                                        .child(
+                                            view()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .gap(ui::space_xs())
+                                                .child(
+                                                    text(move || {
+                                                        details.with(|detail| {
+                                                            detail
+                                                                .as_ref()
+                                                                .and_then(|detail| {
+                                                                    detail.album.as_ref()
+                                                                })
+                                                                .map(|album| album.name.clone())
+                                                                .unwrap_or_default()
+                                                        })
+                                                    })
+                                                    .text_role(ui::TextRole::Title)
+                                                    .number_of_lines(1),
+                                                )
+                                                .child(
+                                                    text(move || {
+                                                        details.with(|detail| {
+                                                            detail
+                                                                .as_ref()
+                                                                .and_then(|detail| {
+                                                                    detail.album.as_ref()
+                                                                })
+                                                                .map(|album| {
+                                                                    album.description.clone()
+                                                                })
+                                                                .unwrap_or_default()
+                                                        })
+                                                    })
+                                                    .text_role(ui::TextRole::Caption)
+                                                    .text_color(ui::fg_secondary)
+                                                    .number_of_lines(2),
+                                                ),
+                                        )
+                                        .child(
+                                            ui::button(
+                                                ui::ButtonTone::Ghost,
+                                                ui::ButtonSize::Small,
+                                            )
+                                            .flex_none()
+                                            .disabled(busy)
+                                            .text_color(move || {
+                                                if details.with(|detail| {
+                                                    detail
+                                                        .as_ref()
+                                                        .and_then(|detail| detail.album.as_ref())
+                                                        .is_some_and(|album| album.added)
+                                                }) {
+                                                    ui::fg_primary()
+                                                } else {
+                                                    ui::accent()
+                                                }
+                                            })
+                                            .on_press(move || {
+                                                if let Some(album) =
+                                                    details.with_untracked(|detail| {
+                                                        detail
+                                                            .as_ref()
+                                                            .and_then(|detail| detail.album.clone())
+                                                    })
+                                                {
+                                                    toggle(album.album_id, !album.added);
+                                                }
+                                            })
+                                            .child(
+                                                text(move || {
+                                                    if details.with(|detail| {
+                                                        detail
+                                                            .as_ref()
+                                                            .and_then(|detail| {
+                                                                detail.album.as_ref()
+                                                            })
+                                                            .is_some_and(|album| album.added)
+                                                    }) {
+                                                        tr(i18n, "Remove", "移除")
+                                                    } else {
+                                                        tr(i18n, "Add", "添加")
+                                                    }
+                                                }),
+                                            ),
+                                        ),
+                                )
+                                .child(
+                                    virtual_list(
+                                        move || {
+                                            details.with(|detail| {
+                                                detail
+                                                    .as_ref()
+                                                    .map_or(0, |detail| detail.album_stickers.len())
+                                            })
+                                        },
+                                        move |at| {
+                                            let item = move || {
+                                                details.with(|detail| {
+                                                    detail.as_ref().and_then(|detail| {
+                                                        detail
+                                                            .album_stickers
+                                                            .get(at.index())
+                                                            .cloned()
+                                                    })
+                                                })
+                                            };
+                                            // Thumbnails are posters; selecting one animates the large preview.
+                                            crate::sticker::visibility(|| false);
+                                            ui::command()
+                                                .p_2()
+                                                .w(ui::sticker_cell_size())
+                                                .h(ui::sticker_cell_size())
+                                                .selected(move || {
+                                                    item().is_some_and(|item| {
+                                                        item.sticker_id == selected.get()
+                                                    })
+                                                })
+                                                .accessibility_label(move || {
+                                                    item().map(|item| item.name.into())
+                                                })
+                                                .on_press(move || {
+                                                    if let Some(item) = item() {
+                                                        selected.set(item.sticker_id);
+                                                    }
+                                                })
+                                                .child(crate::sticker::framed_asset(
+                                                    account.get(),
+                                                    move || {
+                                                        item()
+                                                            .map(|item| {
+                                                                (
+                                                                    Some(item.sticker_id),
+                                                                    item.asset_url,
+                                                                    item.asset_type,
+                                                                )
+                                                            })
+                                                            .unwrap_or_default()
+                                                    },
+                                                    (
+                                                        ui::sticker_art_size().0,
+                                                        ui::sticker_art_size().0,
+                                                    ),
+                                                ))
+                                        },
+                                    )
+                                    .horizontal()
+                                    .test_id("sticker-album-strip")
+                                    .initial_scroll_index(details.with_untracked(|detail| {
+                                        detail
+                                            .as_ref()
+                                            .and_then(|detail| {
+                                                detail.album_stickers.iter().position(|item| {
+                                                    item.sticker_id == selected.get_untracked()
+                                                })
+                                            })
+                                            .unwrap_or(0)
+                                    }))
+                                    .h(ui::sticker_cell_size())
+                                    .flex_none()
+                                    .keys(move || {
+                                        details.with(|detail| {
+                                            detail
+                                                .as_ref()
+                                                .map(|detail| {
+                                                    detail
+                                                        .album_stickers
+                                                        .iter()
+                                                        .map(|item| item.sticker_id.clone())
+                                                        .collect::<Vec<_>>()
+                                                })
+                                                .unwrap_or_default()
+                                        })
+                                    })
+                                    .estimated_item_size(ui::sticker_cell_size())
+                                    .content_padding_x(ui::space_md()),
+                                )
+                                .pb(ui::space_md())
+                        },
+                    ))
+                    .child(when(failed, move || {
+                        ui::parts::failure(
+                            move || tr(i18n, "Couldn’t update stickers.", "暂时无法更新贴纸"),
+                            retry,
+                        )
+                        .px(ui::space_lg())
+                        .pb(ui::space_lg())
+                    })),
+            ),
         )
-        .child(artwork)
-        .child(items)
-        .child(when(failed, move || detail_retry(retry)))
 }
 
 #[cfg(debug_assertions)]
-pub(crate) fn preview_detail(sticker: StickerItem, failed: Signal<bool>) -> View {
-    let source = stored(sticker.clone());
-    let detail = signal_with(
-        Some(StickerDetailItem {
-            sticker,
-            album: None,
-            album_stickers: Vec::new(),
-            is_personal: false,
-        }),
-        SignalEquals::Never,
-    );
-    let saved = detail.get_untracked();
-    effect(move || detail.set(if failed.get() { None } else { saved.clone() }));
+pub(crate) fn preview_detail(detail: StickerDetailItem, failed: Signal<bool>) -> View {
+    let selected = signal(detail.sticker.sticker_id.clone());
+    let details = signal_with(Some(detail), SignalEquals::Never);
     detail_view(
-        detail,
+        None,
+        details,
+        selected,
+        signal(false),
         failed,
+        move || failed.set(false),
+        move |_, added| {
+            details.update(|detail| {
+                if let Some(album) = detail.as_mut().and_then(|detail| detail.album.as_mut()) {
+                    album.added = added;
+                }
+            });
+        },
         || {},
-        view().items_center().child(crate::sticker::framed_asset(
-            None,
-            move || {
-                source.with(|item| {
-                    (
-                        Some(item.sticker_id.clone()),
-                        item.asset_url.clone(),
-                        item.asset_type.clone(),
-                    )
-                })
-            },
-            (256.0, 256.0),
-        )),
-        when(failed, || {
-            ui::error_text(move || i18n::current().text(Key::CommandFailed))
-        }),
     )
 }

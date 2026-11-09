@@ -79,6 +79,28 @@ fn invalid(reason: impl std::fmt::Display) -> MediaError {
 }
 
 impl StickerAnimation {
+    /// Decodes a bounded, self-contained inline composition without a network or account.
+    pub async fn from_data_uri(uri: String, size: u32) -> MediaResult<Self> {
+        use std::hash::{Hash, Hasher};
+        if uri.len() > MAX_STICKER_BYTES.div_ceil(3) * 4 + 80 {
+            return Err(invalid("source is too large"));
+        }
+        let encoded = uri
+            .strip_prefix("data:application/json;base64,")
+            .or_else(|| uri.strip_prefix("data:application/lottie+json;base64,"))
+            .ok_or_else(|| invalid("unsupported inline source"))?;
+        let bytes = STANDARD.decode(encoded).map_err(invalid)?;
+        // Content identity shares renderers across views, not durable business state.
+        let mut hash = std::collections::hash_map::DefaultHasher::new();
+        bytes.hash(&mut hash);
+        Self::load(
+            format!("inline:{}:{:x}", bytes.len(), hash.finish()),
+            bytes.into(),
+            size,
+        )
+        .await
+    }
+
     pub async fn load(key: String, source: Arc<[u8]>, size: u32) -> MediaResult<Self> {
         if source.len() > MAX_STICKER_BYTES
             || source.is_empty()
