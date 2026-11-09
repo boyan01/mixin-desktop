@@ -139,7 +139,7 @@ a component takes `.focus(ui::ring)`.
 | `search_pill`, `search_input` | The search frame and its frameless input |
 | `select`, `select_trigger`, `switch` | Choice controls. Use `switch` through `toggle_row` in settings |
 | `checkbox`, `radio` | An independent choice; one of a `radio_group`. `NO_LABEL` shows none: give an accessible name or add content |
-| `slider`, `slider_compact`, `slider_over_scale`, `slider_over_wave` | A value on a scale; inside a message or strip; over a scale the caller draws; over a waveform |
+| `slider`, `slider_compact`, `slider_media`, `slider_over_scale`, `slider_over_wave` | A value on a scale; inside a message or strip; on a dark media viewer; over a scale the caller draws; over a waveform |
 | `tab` | One tab of a base `tabs` row, sharing its width |
 | `option_row` | An option of a listbox driven from an input; never takes focus |
 | `count_pill` | A count; emphasized only when it asks for attention |
@@ -245,3 +245,22 @@ pans. It emits only input deltas and canvas-local pointer positions to the NSH
 engine; the Rust camera remains the single owner of image geometry. Other native
 backends currently retain the toolbar, keyboard and drag paths; equivalent wheel
 and magnification adapters have not yet been added or validated there.
+
+## Video viewer
+
+Video messages share the image viewer's edge-to-edge shell: sender identity and
+quiet forward, save and close commands in the dark header. Native decoding stays
+in NSH's video surface with its built-in controls hidden. The video fits its canvas
+without cropping. An optional caption sits above a separate transport strip.
+
+The transport keeps playback position, elapsed/total time, mute/volume, playback
+speed and full-screen mode visible. Narrow windows keep the short video header on one row and omit the volume slider
+while keeping mute, seeking and speed reachable. Space toggles playback; Left/Right seek
+five seconds; M toggles mute; F toggles the window's full-screen mode. Leaving a
+viewer that entered full screen restores its previous window mode.
+
+Playback events own duration, position, buffering, end and failure presentation.
+Closing the modal or locking the account pauses or disposes playback. Failure stays in the canvas with a quiet retry command. Video
+attachments opened from a transcript retain their transcript root for saving;
+forwarding is conditional on the message policy and is omitted for transcript
+children. Closing a nested video returns to the previous detail. Live streams keep their existing native-control surface.

@@ -210,6 +210,16 @@ pub(crate) fn slider_compact() -> SliderElement {
         .thumb_class("size-3 rounded-full bg-transparent focus:outline-2 focus:outline-ring")
 }
 
+/// Playback controls on the dark photo/video viewer surface in either appearance.
+pub(crate) fn slider_media() -> SliderElement {
+    slider_compact()
+        .indicator_class("h-0.5 rounded-full bg-media-overlay-foreground/25")
+        .range_class("rounded-full bg-media-overlay-foreground")
+        .thumb_class(
+            "size-3 rounded-full bg-media-overlay-foreground focus:outline-2 focus:outline-ring",
+        )
+}
+
 /// A `slider` over a scale the caller draws, of which it shows only the thumb.
 pub(crate) fn slider_over_scale() -> SliderElement {
     slider()

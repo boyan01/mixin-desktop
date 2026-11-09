@@ -7,7 +7,9 @@ mod gallery;
 mod header;
 mod input_edit;
 mod media_preview;
+mod media_viewer;
 mod mentions;
+mod video;
 pub(crate) use media_preview::MediaPreview;
 mod message_actions;
 mod message_appearance;
@@ -507,3 +509,6 @@ pub(crate) use message_post::detached as preview_markdown;
 
 #[cfg(target_os = "macos")]
 pub(crate) use gallery::input::register as register_image_input;
+
+#[cfg(debug_assertions)]
+pub(crate) use message_detail::preview_video_detail;

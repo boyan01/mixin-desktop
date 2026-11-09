@@ -706,3 +706,24 @@ pub(super) fn markdown_attachment(actions: Actions) -> View {
             )),
     )
 }
+
+pub(super) const VIDEO_ACTIONS: &[&str] = &["Playing", "Muted", "Error", "Reset"];
+pub(super) fn video_viewer(actions: Actions) -> View {
+    prepare();
+    let mode = mode(actions, VIDEO_ACTIONS);
+    host(
+        view()
+            .flex_1()
+            .min_h_0()
+            .relative()
+            .child(messages::timeline_view(crate::chat::detached_messages(
+                fixtures::USER_ID,
+                fixtures::messages::reply_rows(),
+                true,
+                fixtures::messages::mention_names(),
+            )))
+            .child(view().absolute().inset_0().child(ui::scrim()).child(
+                crate::chat::preview_video_detail(fixtures::video_message(), mode),
+            )),
+    )
+}

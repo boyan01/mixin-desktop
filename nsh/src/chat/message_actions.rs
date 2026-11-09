@@ -23,6 +23,10 @@ pub(super) enum Detail {
         message: Box<MessageListView>,
         transcript: Option<String>,
     },
+    Video {
+        message: Box<MessageListView>,
+        transcript: Option<String>,
+    },
     Markdown {
         message: Box<MessageListView>,
         transcript: Option<String>,
@@ -204,11 +208,22 @@ impl Actions {
     }
 
     pub fn open_preview(self, row: MessageListView) {
-        self.open(Detail::Message(Box::new(row)));
+        if row.category.ends_with("_VIDEO") {
+            self.open_video(row, None);
+        } else {
+            self.open(Detail::Message(Box::new(row)));
+        }
     }
 
     pub fn open_image(self, row: MessageListView, transcript: Option<String>) {
         self.open(Detail::Image {
+            message: Box::new(row),
+            transcript,
+        });
+    }
+
+    pub fn open_video(self, row: MessageListView, transcript: Option<String>) {
+        self.open(Detail::Video {
             message: Box::new(row),
             transcript,
         });

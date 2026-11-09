@@ -120,6 +120,7 @@ lengths! {
     picker_form_height = "picker-form-height";
     viewer_toolbar_height = "viewer-toolbar-height";
     viewer_toolbar_wide = "viewer-toolbar-wide";
+    video_volume_width = "video-volume-width";
     dialog_close_size = "dialog-close-size";
     /// One command of a `profile_actions` row, and the icon in it.
     profile_action_size = "profile-action-size";

@@ -5,10 +5,10 @@ related primary commitments, pagination, disabled actions, forms and retry actio
 Ghost commands, pill actions, bot-defined custom button colors and native OS alerts
 use different treatments.
 
-There are 82 native scenes, including the original 21 scenes. Each scene represents
+There are 83 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 193 captures, grouped by scene and state. `--scenes`
+The full catalog contains 197 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -83,7 +83,7 @@ design review; service-backed save/send/download commands require a live account
 | `conversation_list/`, `home.rs` | `conversations`, `mute`, `empty-filtered` | Loaded conversation list, load failure, command failure, mute and filter actions |
 | `chat/` | `messages`, `message-selection`, `message-reply`, `message-qr` | Timeline and composer context, draft/history/unread/pinned failures, send restriction |
 | `chat/message_transcript.rs`, `chat/message_content.rs` | `transcript`, `transcript-summary`, `messages-cards` | Reader/summary failures and failed outgoing forward inside the message list |
-| `chat/gallery.rs`, `chat/message_post.rs` | `photo-viewer`, `markdown-attachment` | Actual viewer/reader chrome and failed content |
+| `chat/gallery.rs`, `chat/video.rs`, `chat/message_post.rs` | `photo-viewer`, `video-viewer`, `markdown-attachment` | Actual viewer/reader chrome, playback controls and failed content |
 | `chat/message_detail.rs`, `composer/sticker_store.rs` | `sticker-save`, `sticker-detail`, `sticker-store` | Save sticker, details/retry, subscriptions and store failures |
 | `composer/` | `composer`, `composer-details`, `composer-fold`, `emoji`, `stickers`, `write-post`, `share-contact`, `image-editor` | Attachment preparation failure in editor, picker failures, send/cancel and media controls |
 | `avatar/crop.rs` | `avatar-crop` | Crop/rotate/reset/cancel/done |
@@ -163,3 +163,16 @@ Targeted native captures are under `output/button-review/sticker-redesign-after/
 `sticker-redesign-light/`, and `sticker-redesign-narrow/`. The baseline is preserved
 in `sticker-redesign-before/`. These captures do not verify a live account's
 network download or album subscription changes, nor Windows/Linux rendering.
+
+## Video viewer review
+
+`video-viewer` uses the production video surface over a conversation backdrop.
+`Playing`, `Muted` and `Error` are states of this same scene. The normal state is
+paused so its chrome can be reviewed. Its eight-second H.264/AAC fixture is made
+from the existing local photo with a silent audio track; it needs no account or
+network. Native progress/load events drive the transport in this preview too.
+
+The photo and video viewers share `chat/media_viewer.rs` for sender identity,
+header layout and icon commands. Video adds a dedicated seek/volume/speed strip.
+Review both scenes after changing their shared chrome. Account-backed forwarding
+and saving, and Windows/Linux playback remain separate validation requirements.

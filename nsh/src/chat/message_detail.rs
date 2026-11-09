@@ -265,10 +265,18 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
         move || {
             ui::dialog_with_inset(
                 presence,
-                move || actions.close_preview(),
+                move || {
+                    if shown.with(|detail| matches!(detail, Some(Detail::Video { .. }))) {
+                        actions.back_preview();
+                    } else {
+                        actions.close_preview();
+                    }
+                },
                 detail_card(actions, shown, presence),
                 move || {
-                    if shown.with(|detail| matches!(detail, Some(Detail::Image { .. }))) {
+                    if shown.with(|detail| {
+                        matches!(detail, Some(Detail::Image { .. } | Detail::Video { .. }))
+                    }) {
                         px(0.0)
                     } else {
                         ui::space_xl()
@@ -348,7 +356,9 @@ fn detail_card(
     let i18n = actions.i18n;
     let qr = move || shown.with(|detail| matches!(detail, Some(Detail::Qr(_))));
     let user_profile = move || shown.with(|detail| matches!(detail, Some(Detail::User(_))));
-    let photo = move || shown.with(|detail| matches!(detail, Some(Detail::Image { .. })));
+    let photo = move || {
+        shown.with(|detail| matches!(detail, Some(Detail::Image { .. } | Detail::Video { .. })))
+    };
     let sticker = move || shown.with(|detail| matches!(detail, Some(Detail::Sticker(_))));
 
     view()
@@ -440,17 +450,17 @@ fn detail_card(
                     message,
                     transcript,
                 }) => super::message_post::attachment(*message, transcript, actions).into_element(),
-                Some(Detail::Message(row))
-                    if row.category.ends_with("_VIDEO") || row.category.ends_with("_LIVE") =>
-                {
-                    let source = if row.category.ends_with("_LIVE") {
-                        serde_json::from_str::<Value>(&row.content)
-                            .ok()
-                            .and_then(|v| v.get("url").and_then(Value::as_str).map(str::to_owned))
-                            .unwrap_or_default()
-                    } else {
-                        row.media_url.unwrap_or_default()
-                    };
+                Some(Detail::Video {
+                    message,
+                    transcript,
+                }) => super::video::screen(*message, transcript, actions, presence).into_element(),
+                Some(Detail::Message(row)) if row.category.ends_with("_LIVE") => {
+                    let source = serde_json::from_str::<Value>(&row.content)
+                        .ok()
+                        .and_then(|value| {
+                            value.get("url").and_then(Value::as_str).map(str::to_owned)
+                        })
+                        .unwrap_or_default();
                     video(source)
                         .paused(move || !presence.interactive())
                         .controls(true)
@@ -511,7 +521,7 @@ fn detail_card(
                             | Detail::Sticker(_)
                             | Detail::Markdown { .. }
                             | Detail::TranscriptSummary { .. } => None,
-                            Detail::Image { .. } => None,
+                            Detail::Image { .. } | Detail::Video { .. } => None,
                         })
                         .unwrap_or_default()
                 })
@@ -531,4 +541,10 @@ pub(super) fn detached(actions: Actions) -> View {
         signal_with(actions.preview.get_untracked(), SignalEquals::Never),
         crate::motion::Presence::modal(|| true),
     )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_video_detail(row: MessageListView, mode: Signal<&'static str>) -> View {
+    let actions = Actions::detached(row.sender_id.clone());
+    super::video::detached(row, actions, mode)
 }

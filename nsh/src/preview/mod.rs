@@ -424,6 +424,11 @@ const SCENES: &[Scene] = &[
         mount: button_pages::summary,
     },
     Scene {
+        name: "video-viewer",
+        actions: button_pages::VIDEO_ACTIONS,
+        mount: button_pages::video_viewer,
+    },
+    Scene {
         name: "photo-viewer",
         actions: button_pages::PHOTO_ACTIONS,
         mount: button_pages::photo_viewer,

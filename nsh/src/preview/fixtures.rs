@@ -963,3 +963,21 @@ pub(super) fn sticker_detail() -> mixin_desktop_api::StickerDetailItem {
         is_personal: false,
     }
 }
+
+pub(super) fn video_message() -> mixin_desktop_api::MessageListView {
+    let mut row = messages::media_rows().remove(0);
+    row.media_url = Some(
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/preview/fixtures/video-review.mp4"
+        )
+        .into(),
+    );
+    row.media_status = "DONE".into();
+    row.media_width = Some(960);
+    row.media_height = Some(640);
+    row.media_duration = "8000".into();
+    row.sender_identity_number = Some(IDENTITY_NUMBER.into());
+    row.caption = Some("周末的海边，晚霞刚刚好。".into());
+    row
+}

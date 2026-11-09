@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 mod camera;
 pub(crate) mod input;
+use super::media_viewer::{button as viewer_button, header as viewer_header};
 use camera::Camera;
 
 use super::{message_actions::Actions, message_content::available};
@@ -132,32 +133,6 @@ pub(super) fn screen(
         source,
         signal(Camera::new((1.0, 1.0), (1.0, 1.0))),
     )
-}
-
-/// A round icon command over the picture, on the dark overlay in either appearance.
-fn viewer_button(
-    icon: ui::Icon,
-    label: impl Fn() -> &'static str + Copy + 'static,
-    on_press: impl Fn() + 'static,
-    disabled: impl Fn() -> bool + 'static,
-) -> View {
-    view()
-        .flex_none()
-        .size_9()
-        .items_center()
-        .justify_center()
-        .pointer_events(PointerEvents::Auto)
-        .tooltip(ui::hint(move || label().to_owned()))
-        .child(
-            ui::round_button()
-                .size_9()
-                .text_color(ui::media_overlay_foreground)
-                .hover(|style| style.bg(|| ui::media_overlay_foreground().opacity(0.18)))
-                .disabled(disabled)
-                .accessibility_label(move || Some(label().into()))
-                .on_press(on_press)
-                .child(ui::icon(icon).size(ui::icon_lg())),
-        )
 }
 
 pub(crate) fn photo_error(retry: impl Fn() + 'static) -> View {
@@ -425,50 +400,6 @@ fn viewer(
             .inset_0()
             .pointer_events(PointerEvents::None)
     };
-    let identity_view = move || {
-        view()
-            .flex_1()
-            .min_w_0()
-            .flex_row()
-            .items_center()
-            .gap(ui::space_lg())
-            .child(ui::avatar_view(
-                move || selected().map(|row| row.sender_id).unwrap_or_default(),
-                move || {
-                    selected()
-                        .map(|row| row.sender_name)
-                        .unwrap_or_default()
-                        .into()
-                },
-                move || {
-                    selected()
-                        .map(|row| row.sender_avatar_url)
-                        .unwrap_or_default()
-                },
-                ui::AvatarSize::Bar,
-            ))
-            .child(
-                view()
-                    .flex_1()
-                    .min_w_0()
-                    .child(
-                        text(move || selected().map(|row| row.sender_name).unwrap_or_default())
-                            .text_role(ui::TextRole::Title)
-                            .number_of_lines(1)
-                            .text_color(ui::media_overlay_foreground),
-                    )
-                    .child(
-                        text(move || {
-                            selected()
-                                .and_then(|row| row.sender_identity_number)
-                                .unwrap_or_default()
-                        })
-                        .text_role(ui::TextRole::Body)
-                        .number_of_lines(1)
-                        .text_color(ui::viewer_secondary),
-                    ),
-            )
-    };
     let tools = move || {
         view()
             .flex_row()
@@ -523,37 +454,12 @@ fn viewer(
                 move || busy.get() || loading.get() || selected().is_none(),
             ))
     };
-    let close = move || {
-        viewer_button(
-            ui::Icon::CloseCircle,
-            move || i18n.tr("Close", "关闭"),
-            move || actions.close_preview(),
-            || false,
-        )
-    };
-    let compact = move || viewport.get().0 < ui::viewer_toolbar_wide().0;
-    let row = || {
-        view()
-            .min_h(ui::viewer_toolbar_height())
-            .flex_row()
-            .items_center()
-            .gap(ui::space_lg())
-            .px(ui::space_xl())
-            .pl(move || ui::title_bar_leading(px(0.0)))
-            .py(ui::space_sm())
-    };
-    let header = view()
-        .flex_none()
-        .bg(ui::viewer_toolbar_fill)
-        .window_drag(true)
-        .child(
-            when(compact, move || {
-                view()
-                    .child(row().child(identity_view()).child(close()))
-                    .child(tools().self_end().px(ui::space_xl()).pb(ui::space_sm()))
-            })
-            .otherwise(move || row().child(identity_view()).child(tools()).child(close())),
-        );
+    let header = viewer_header(
+        selected,
+        tools,
+        move || actions.close_preview(),
+        move || viewport.get().0 < ui::viewer_toolbar_wide().0,
+    );
     view()
         .flex_1()
         .min_h_0()

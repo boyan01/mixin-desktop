@@ -256,7 +256,7 @@ pub(super) fn card(
             if !done {
                 transfer.toggle(actions);
             } else if video {
-                actions.open_preview(row.with(|value| value.clone()));
+                actions.open_video(row.with(|value| value.clone()), root.get());
             } else {
                 actions.open_image(
                     row.with(|value| value.clone()),
