@@ -7,6 +7,7 @@ use crate::{ui, ui::parts};
 pub(super) const ACTIONS: &[&str] = &["Select", "Next", "Error", "Create error", "Reset"];
 pub(super) const ERROR_ACTIONS: &[&str] = &["Error", "Reset"];
 pub(super) const CIRCLE_ACTIONS: &[&str] = &["Next", "Error", "Reset"];
+pub(super) const PHOTO_ACTIONS: &[&str] = &["Zoom", "Edge", "Rotate", "Error", "Reset"];
 pub(super) const STATIC_ACTIONS: &[&str] = &[];
 
 fn state(actions: Actions) -> (Signal<bool>, Signal<bool>, Signal<bool>) {
@@ -623,16 +624,31 @@ pub(super) fn summary(actions: Actions) -> View {
 }
 pub(super) fn photo_viewer(actions: Actions) -> View {
     prepare();
-    let (_, _, failed) = state(actions);
-    host(crate::chat::preview_photos(
-        fixtures::messages::photo_rows()
-            .into_iter()
-            .filter(|row| row.media_url.as_ref().is_some_and(|url| !url.is_empty()))
-            .collect(),
-        fixtures::USER_ID.into(),
-        failed,
-    ))
+    let mode = mode(actions, PHOTO_ACTIONS);
+    let mut rows = fixtures::messages::photo_rows()
+        .into_iter()
+        .filter(|row| row.media_url.as_ref().is_some_and(|url| !url.is_empty()))
+        .collect::<Vec<_>>();
+    for row in &mut rows {
+        row.sender_identity_number = Some(fixtures::IDENTITY_NUMBER.into());
+    }
+    host(
+        view()
+            .flex_1()
+            .min_h_0()
+            .relative()
+            .child(messages::timeline_view(crate::chat::detached_messages(
+                fixtures::USER_ID,
+                fixtures::messages::reply_rows(),
+                true,
+                fixtures::messages::mention_names(),
+            )))
+            .child(view().absolute().inset_0().child(ui::scrim()).child(
+                crate::chat::preview_photos(rows, fixtures::USER_ID.into(), mode),
+            )),
+    )
 }
+
 pub(super) fn emoji(actions: Actions) -> View {
     prepare();
     let (_, _, failed) = state(actions);

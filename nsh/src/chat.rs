@@ -504,3 +504,6 @@ pub(crate) use compose::preview_unavailable;
 
 #[cfg(debug_assertions)]
 pub(crate) use message_post::detached as preview_markdown;
+
+#[cfg(target_os = "macos")]
+pub(crate) use gallery::input::register as register_image_input;

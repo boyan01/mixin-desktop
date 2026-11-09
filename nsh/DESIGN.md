@@ -221,3 +221,27 @@ retry creation from `Create`, and retry forwarding by choosing the destination.
 The shared functions own appearance and geometry. Each flow still owns its query,
 selection, cancellation and command; do not introduce a generic workflow controller
 or give single-select destinations a multi-select presentation.
+
+
+## Image viewer
+
+The viewer reaches the window edges over a dimmed conversation. One dark header
+holds the sender avatar, name and identity number, followed by zoom in/out, rotate,
+forward, copy, save and close commands. Image operations do not share a floating
+bottom toolbar with caption text. Captions remain optional, selectable overlays.
+
+The image initially fits the available canvas below the header. `Mod+0` refits;
+`Mod+1` selects native pixel size, accounting for display density; double-click
+toggles between that size and fit. Narrow windows keep identity and close on the
+first header row and place image commands on a second row.
+Zoom preserves the image point under the pointer. Each axis centers when the image
+fits and clamps to the viewport edges when it overflows. Resize preserves the image
+point at the viewport center unless the image is fitted, in which case it refits.
+Rotation preserves the viewed point and reapplies bounds and zoom limits.
+
+On macOS, the canvas has an app-owned native input view: a mouse wheel zooms,
+trackpad magnification zooms continuously, and two-finger scrolling or dragging
+pans. It emits only input deltas and canvas-local pointer positions to the NSH
+engine; the Rust camera remains the single owner of image geometry. Other native
+backends currently retain the toolbar, keyboard and drag paths; equivalent wheel
+and magnification adapters have not yet been added or validated there.

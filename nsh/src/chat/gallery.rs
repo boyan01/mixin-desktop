@@ -3,6 +3,10 @@ use mixin_desktop_api::MessageListView;
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 use std::collections::HashMap;
 
+mod camera;
+pub(crate) mod input;
+use camera::Camera;
+
 use super::{message_actions::Actions, message_content::available};
 use crate::{
     i18n::Key,
@@ -23,21 +27,19 @@ pub(super) fn screen(
     let failed = signal(false);
     let busy = signal(false);
     let retry = signal(0_u64);
-    let zoom = signal(1_f32);
-    let rotation = signal(0_u8);
     let forward_allowed = signal(false);
     let image_failed = signal(false);
     let source = stored(transcript);
     effect(move || {
         let anchor = current.get();
         let request = retry.get();
-        let client = actions.account.with(|a| a.clone());
+        let Some(client) = actions.account.client() else {
+            return;
+        };
         let transcript = source.with(|source| source.clone());
         let conversation = conversation.with(|id| id.clone());
         loading.set(true);
         failed.set(false);
-        zoom.set(1.0);
-        rotation.set(0);
         forward_allowed.set(false);
         image_failed.set(false);
         spawn(async move {
@@ -125,30 +127,37 @@ pub(super) fn screen(
         failed,
         busy,
         retry,
-        zoom,
-        rotation,
         forward_allowed,
         image_failed,
         source,
+        signal(Camera::new((1.0, 1.0), (1.0, 1.0))),
     )
 }
 
 /// A round icon command over the picture, on the dark overlay in either appearance.
 fn viewer_button(
     icon: ui::Icon,
-    label: impl Fn() -> &'static str + 'static,
+    label: impl Fn() -> &'static str + Copy + 'static,
     on_press: impl Fn() + 'static,
     disabled: impl Fn() -> bool + 'static,
-) -> nsh_base::ButtonElement {
-    ui::round_button()
+) -> View {
+    view()
+        .flex_none()
         .size_9()
+        .items_center()
+        .justify_center()
         .pointer_events(PointerEvents::Auto)
-        .text_color(ui::media_overlay_foreground)
-        .hover(|style| style.bg(|| ui::media_overlay_foreground().opacity(0.18)))
-        .disabled(disabled)
-        .accessibility_label(move || Some(label().into()))
-        .on_press(on_press)
-        .child(ui::icon(icon))
+        .tooltip(ui::hint(move || label().to_owned()))
+        .child(
+            ui::round_button()
+                .size_9()
+                .text_color(ui::media_overlay_foreground)
+                .hover(|style| style.bg(|| ui::media_overlay_foreground().opacity(0.18)))
+                .disabled(disabled)
+                .accessibility_label(move || Some(label().into()))
+                .on_press(on_press)
+                .child(ui::icon(icon).size(ui::icon_lg())),
+        )
 }
 
 pub(crate) fn photo_error(retry: impl Fn() + 'static) -> View {
@@ -176,11 +185,10 @@ fn viewer(
     failed: Signal<bool>,
     busy: Signal<bool>,
     retry: Signal<u64>,
-    zoom: Signal<f32>,
-    rotation: Signal<u8>,
     forward_allowed: Signal<bool>,
     image_failed: Signal<bool>,
     source: Stored<Option<String>>,
+    camera: Signal<Camera>,
 ) -> View {
     let i18n = actions.i18n;
     let selected = move || {
@@ -191,47 +199,38 @@ fn viewer(
         })
     };
     let viewport = signal((1.0_f32, 1.0_f32));
-    let offset = signal((0.0_f32, 0.0_f32));
-    let drag = stored(None::<((f32, f32), (f32, f32))>);
-    let horizontal = element_ref();
-    let vertical = element_ref();
-    // macOS Scroll ignores native zoom props. Size the unrotated image and
-    // its rotated scroll canvas explicitly from the actual available viewport.
-    let geometry = computed(move || {
-        let (vw, vh) = viewport.get();
-        let (width, height) = selected()
-            .and_then(|row| row.media_width.zip(row.media_height))
-            .filter(|(width, height)| *width > 0 && *height > 0)
-            .map(|(width, height)| (width as f32, height as f32))
-            .unwrap_or((vw, vh));
-        let rotated = !rotation.get().is_multiple_of(2);
-        let (rw, rh) = if rotated {
-            (height, width)
-        } else {
-            (width, height)
-        };
-        let scale = (vw / rw).min(vh / rh) * zoom.get();
-        (
-            width * scale,
-            height * scale,
-            (rw * scale).max(vw),
-            (rh * scale).max(vh),
-        )
-    });
-    // Every length below comes from the picture and the zoom, not from the design.
-    let scroll_to = move |next: (f32, f32)| {
-        horizontal.scroll_to_offset(px(next.0), false);
-        vertical.scroll_to_offset(px(next.1), false);
-    };
-    let canvas_width = move || px(geometry.get().2);
+    let identity = stored((String::new(), (0.0_f32, 0.0_f32)));
     effect(move || {
-        let (_, _, width, height) = geometry.get();
-        let (vw, vh) = viewport.get();
-        let next = ((width - vw) / 2.0, (height - vh) / 2.0);
-        drag.replace(None);
-        offset.set(next);
-        scroll_to(next);
+        let viewport = viewport.get();
+        let ratio = pixel_ratio().max(1.0);
+        if let Some(row) = selected() {
+            let dimensions = row
+                .media_width
+                .zip(row.media_height)
+                .filter(|(w, h)| *w > 0 && *h > 0)
+                .map(|(w, h)| (w as f32 / ratio, h as f32 / ratio))
+                .unwrap_or(viewport);
+            let next = (row.message_id, dimensions);
+            if identity.with(|old| *old != next) {
+                identity.replace(next);
+                camera.set(Camera::new(dimensions, viewport));
+            } else {
+                camera.update(|camera| camera.resize(viewport));
+            }
+        }
     });
+    let zoom_at = move |factor, pointer| camera.update(|camera| camera.zoom(factor, pointer));
+    let zoom_center = move |factor| camera.update(|camera| camera.zoom(factor, camera.center()));
+    let fit = move || camera.update(Camera::fit);
+    let toggle = move |pointer| {
+        camera.update(|camera| {
+            if (camera.scale - camera.fit_scale()).abs() < 0.001 {
+                camera.zoom(1.0 / camera.scale, pointer);
+            } else {
+                camera.fit();
+            }
+        })
+    };
     let neighbor = move |direction: isize| {
         rows.with(|rows| {
             let index = rows
@@ -250,7 +249,12 @@ fn viewer(
     };
     on_key("left", move |_| go(-1));
     on_key("right", move |_| go(1));
-    on_key("mod+0", move |_| zoom.set(1.0));
+    on_key("mod+0", move |_| fit());
+    on_key("mod+1", move |_| {
+        camera.update(|camera| camera.zoom(1.0 / camera.scale, camera.center()))
+    });
+    on_key("mod+=", move |_| zoom_center(1.25));
+    on_key("mod+-", move |_| zoom_center(0.8));
     let usable = move || {
         !(busy.get()
             || loading.get()
@@ -271,7 +275,9 @@ fn viewer(
         let Some(row) = selected() else {
             return;
         };
-        let client = actions.account.with(|a| a.clone());
+        let Some(client) = actions.account.client() else {
+            return;
+        };
         let transcript = source.with(|source| source.clone());
         busy.set(true);
         spawn(async move {
@@ -301,7 +307,9 @@ fn viewer(
         let Some(row) = selected() else {
             return;
         };
-        let client = actions.account.with(|a| a.clone());
+        let Some(client) = actions.account.client() else {
+            return;
+        };
         let transcript = source.with(|source| source.clone());
         busy.set(true);
         spawn(async move {
@@ -329,7 +337,9 @@ fn viewer(
         let Some(row) = selected() else {
             return;
         };
-        let client = actions.account.with(|a| a.clone());
+        let Some(client) = actions.account.client() else {
+            return;
+        };
         let transcript = source.with(|source| source.clone());
         busy.set(true);
         spawn(async move {
@@ -362,291 +372,324 @@ fn viewer(
             busy.set(false);
         });
     };
-    let canvas = scroll()
-        .horizontal()
-        .element_ref(&horizontal)
-        .absolute()
-        .inset_0()
+    let canvas = view()
+        .flex_1()
+        .min_h_0()
+        .relative()
+        .overflow_hidden()
+        .test_id("photo-canvas")
         .on_layout(move |bounds: &Bounds<Points>| {
             viewport.set((bounds.size.width.0.max(1.0), bounds.size.height.0.max(1.0)));
         })
-        .on_scroll(move |event: &ScrollEvent| {
-            offset.update(|offset| offset.0 = event.offset.x.0);
-        })
+        .child(when(
+            move || selected().is_some_and(|m| available(&m)) && !image_failed.get(),
+            move || {
+                view()
+                    .absolute()
+                    .left(move || px(camera.get().origin.0))
+                    .top(move || px(camera.get().origin.1))
+                    .w(move || px(camera.get().rendered().0))
+                    .h(move || px(camera.get().rendered().1))
+                    .pointer_events(PointerEvents::None)
+                    .child(
+                        image(move || selected().and_then(|m| m.media_url).unwrap_or_default())
+                            .absolute()
+                            .left(move || {
+                                px((camera.get().rendered().0
+                                    - camera.get().image.0 * camera.get().scale)
+                                    / 2.0)
+                            })
+                            .top(move || {
+                                px((camera.get().rendered().1
+                                    - camera.get().image.1 * camera.get().scale)
+                                    / 2.0)
+                            })
+                            .w(move || px(camera.get().image.0 * camera.get().scale))
+                            .h(move || px(camera.get().image.1 * camera.get().scale))
+                            .rotate(move || deg(f32::from(camera.get().rotation) * 90.0))
+                            .object_fit(ResizeMode::Contain)
+                            .label(move || i18n.text(Key::Photo))
+                            .on_error(move |_: &str| image_failed.set(true)),
+                    )
+            },
+        ))
+        .child(input::surface(
+            usable,
+            zoom_at,
+            move |delta| camera.update(|camera| camera.pan(delta)),
+            toggle,
+        ));
+    let layer = || {
+        view()
+            .absolute()
+            .inset_0()
+            .pointer_events(PointerEvents::None)
+    };
+    let identity_view = move || {
+        view()
+            .flex_1()
+            .min_w_0()
+            .flex_row()
+            .items_center()
+            .gap(ui::space_lg())
+            .child(ui::avatar_view(
+                move || selected().map(|row| row.sender_id).unwrap_or_default(),
+                move || {
+                    selected()
+                        .map(|row| row.sender_name)
+                        .unwrap_or_default()
+                        .into()
+                },
+                move || {
+                    selected()
+                        .map(|row| row.sender_avatar_url)
+                        .unwrap_or_default()
+                },
+                ui::AvatarSize::Bar,
+            ))
+            .child(
+                view()
+                    .flex_1()
+                    .min_w_0()
+                    .child(
+                        text(move || selected().map(|row| row.sender_name).unwrap_or_default())
+                            .text_role(ui::TextRole::Title)
+                            .number_of_lines(1)
+                            .text_color(ui::media_overlay_foreground),
+                    )
+                    .child(
+                        text(move || {
+                            selected()
+                                .and_then(|row| row.sender_identity_number)
+                                .unwrap_or_default()
+                        })
+                        .text_role(ui::TextRole::Body)
+                        .number_of_lines(1)
+                        .text_color(ui::viewer_secondary),
+                    ),
+            )
+    };
+    let tools = move || {
+        view()
+            .flex_row()
+            .flex_none()
+            .items_center()
+            .gap(ui::space_sm())
+            .child(viewer_button(
+                ui::Icon::ZoomIn,
+                move || i18n.tr("Zoom in", "放大"),
+                move || zoom_center(1.25),
+                move || !usable() || camera.get().scale >= camera.get().limits().1,
+            ))
+            .child(viewer_button(
+                ui::Icon::ZoomOut,
+                move || i18n.tr("Zoom out", "缩小"),
+                move || zoom_center(0.8),
+                move || !usable() || camera.get().scale <= camera.get().limits().0,
+            ))
+            .child(viewer_button(
+                ui::Icon::Rotate,
+                move || i18n.tr("Rotate", "旋转"),
+                move || camera.update(Camera::turn),
+                move || !usable(),
+            ))
+            .child(when(
+                move || source.with(|value| value.is_none()),
+                move || {
+                    viewer_button(
+                        ui::Icon::Forward,
+                        move || i18n.tr("Forward…", "转发…"),
+                        forward,
+                        move || busy.get() || loading.get() || !forward_allowed.get(),
+                    )
+                },
+            ))
+            .child(viewer_button(
+                ui::Icon::Copy,
+                move || i18n.tr("Copy image", "复制图片"),
+                copy,
+                move || !usable(),
+            ))
+            .child(viewer_button(
+                ui::Icon::Download,
+                move || i18n.tr("Save as…", "另存为…"),
+                move || {
+                    if selected().is_some_and(|row| available(&row)) {
+                        save();
+                    } else {
+                        download();
+                    }
+                },
+                move || busy.get() || loading.get() || selected().is_none(),
+            ))
+    };
+    let close = move || {
+        viewer_button(
+            ui::Icon::CloseCircle,
+            move || i18n.tr("Close", "关闭"),
+            move || actions.close_preview(),
+            || false,
+        )
+    };
+    let compact = move || viewport.get().0 < ui::viewer_toolbar_wide().0;
+    let row = || {
+        view()
+            .min_h(ui::viewer_toolbar_height())
+            .flex_row()
+            .items_center()
+            .gap(ui::space_lg())
+            .px(ui::space_xl())
+            .pl(move || ui::title_bar_leading(px(0.0)))
+            .py(ui::space_sm())
+    };
+    let header = view()
+        .flex_none()
+        .bg(ui::viewer_toolbar_fill)
+        .window_drag(true)
         .child(
-            scroll()
-                .element_ref(&vertical)
-                .flex_none()
-                .w(canvas_width)
-                .h_full()
-                .on_scroll(move |event: &ScrollEvent| {
-                    offset.update(|offset| offset.1 = event.offset.y.0);
-                })
-                .child(when(
-                    move || selected().is_some_and(|m| available(&m)) && !image_failed.get(),
-                    move || {
-                        view()
-                            .flex_none()
-                            .w(canvas_width)
-                            .h(move || px(geometry.get().3))
-                            .items_center()
-                            .justify_center()
-                            .claim_touches(TouchClaim::on_start().ask(
-                                move |request: &ClaimRequest| {
-                                    if zoom.get_untracked() > 1.0 {
-                                        request.claim();
-                                    }
-                                },
-                            ))
-                            .keep_touches(true)
-                            .on_responder_grant(move |event: &ResponderEvent| {
-                                drag.replace(Some((
-                                    (event.page.x.0, event.page.y.0),
-                                    offset.get_untracked(),
-                                )));
-                            })
-                            .on_responder_move(move |event: &ResponderEvent| {
-                                let Some((start, origin)) = drag.get() else {
-                                    return;
-                                };
-                                let (_, _, width, height) = geometry.get_untracked();
-                                let (vw, vh) = viewport.get_untracked();
-                                let next = (
-                                    (origin.0 - (event.page.x.0 - start.0))
-                                        .clamp(0.0, (width - vw).max(0.0)),
-                                    (origin.1 - (event.page.y.0 - start.1))
-                                        .clamp(0.0, (height - vh).max(0.0)),
-                                );
-                                scroll_to(next);
-                            })
-                            .on_responder_release(move |_: &ResponderEvent| {
-                                drag.replace(None);
-                            })
-                            .on_responder_terminate(move |_: &ResponderEvent| {
-                                drag.replace(None);
-                            })
-                            .child(
-                                image(move || {
-                                    selected().and_then(|m| m.media_url).unwrap_or_default()
-                                })
-                                .flex_none()
-                                .w(move || px(geometry.get().0))
-                                .h(move || px(geometry.get().1))
-                                .rotate(move || deg(f32::from(rotation.get()) * 90.0))
-                                .object_fit(ResizeMode::Contain)
-                                .label(move || i18n.text(Key::Photo))
-                                .on_error(move |_: &str| image_failed.set(true)),
-                            )
-                    },
-                )),
+            when(compact, move || {
+                view()
+                    .child(row().child(identity_view()).child(close()))
+                    .child(tools().self_end().px(ui::space_xl()).pb(ui::space_sm()))
+            })
+            .otherwise(move || row().child(identity_view()).child(tools()).child(close())),
         );
-    let none = PointerEvents::None;
-    let layer = || view().absolute().inset_0().pointer_events(none);
     view()
         .flex_1()
         .min_h_0()
         .w_full()
-        .relative()
-        .overflow_hidden()
         .bg(ui::viewer_background)
-        .child(canvas)
-        // State shown in the middle of the picture.
+        .child(header)
         .child(
-            layer()
-                .items_center()
-                .justify_center()
-                .gap_2()
-                .child(when(loading, move || {
-                    text(move || i18n.text(Key::LoadingMessages))
-                        .text_role(ui::TextRole::Body)
-                        .text_color(ui::media_overlay_foreground)
-                }))
-                .child(when(
-                    move || failed.get() || image_failed.get(),
-                    move || {
-                        photo_error(move || {
-                            image_failed.set(false);
-                            retry.update(|v| *v += 1);
-                        })
-                    },
-                )),
-        )
-        // Previous and next photo.
-        .child(
-            layer()
-                .flex_row()
-                .items_center()
-                .justify_between()
-                .px_4()
+            view()
+                .flex_1()
+                .min_h_0()
+                .relative()
+                .child(canvas)
                 .child(
-                    viewer_button(
-                        ui::Icon::ChevronLeft,
-                        move || i18n.tr("Previous photo", "上一张"),
-                        move || go(-1),
-                        move || loading.get() || neighbor(-1).is_none(),
-                    )
-                    .size_10(),
-                )
-                .child(
-                    viewer_button(
-                        ui::Icon::ChevronRight,
-                        move || i18n.tr("Next photo", "下一张"),
-                        move || go(1),
-                        move || loading.get() || neighbor(1).is_none(),
-                    )
-                    .size_10(),
-                ),
-        )
-        // Close.
-        .child(
-            layer()
-                .flex_row()
-                .justify_end()
-                .items_start()
-                .p_4()
-                .child(viewer_button(
-                    ui::Icon::Close,
-                    move || i18n.tr("Close", "关闭"),
-                    move || actions.close_preview(),
-                    || false,
-                )),
-        )
-        // The caption and the tools.
-        .child(
-            layer()
-                .justify_end()
-                .items_center()
-                .gap_3()
-                .pb_4()
-                .child(when(
-                    move || {
-                        selected()
-                            .and_then(|row| row.caption)
-                            .is_some_and(|caption| !caption.is_empty())
-                    },
-                    move || {
-                        view()
-                            .max_w(relative(0.8))
-                            .max_h_20()
-                            .px_4()
-                            .py_2()
-                            .rounded(ui::radius_lg())
-                            .bg(ui::media_overlay)
-                            .pointer_events(PointerEvents::Auto)
-                            .child(
-                                scroll().child(
-                                    text(move || {
-                                        selected().and_then(|row| row.caption).unwrap_or_default()
-                                    })
-                                    .text_role(ui::TextRole::Body)
-                                    .text_color(ui::media_overlay_foreground)
-                                    .select_text(),
-                                ),
-                            )
-                    },
-                ))
-                .child(
-                    view()
-                        .flex_row()
-                        .flex_wrap()
+                    layer()
                         .items_center()
                         .justify_center()
-                        .gap_1()
-                        .p_1()
-                        .max_w(relative(0.95))
-                        .rounded(ui::radius_full())
-                        .bg(ui::media_overlay)
-                        .pointer_events(PointerEvents::Auto)
-                        .child(viewer_button(
-                            ui::Icon::ZoomOut,
-                            move || i18n.tr("Zoom out", "缩小"),
-                            move || zoom.update(|z| *z = (*z / 1.25).max(1.0)),
-                            move || zoom.get() <= 1.0,
-                        ))
-                        .child(
-                            ui::round_button()
-                                .h_9()
-                                .px_2()
+                        .gap_2()
+                        .child(when(loading, move || {
+                            text(move || i18n.text(Key::LoadingMessages))
+                                .text_role(ui::TextRole::Body)
                                 .text_color(ui::media_overlay_foreground)
-                                .accessibility_label(move || {
-                                    Some(i18n.tr("Actual fit", "适应窗口").into())
+                        }))
+                        .child(when(
+                            move || failed.get() || image_failed.get(),
+                            move || {
+                                photo_error(move || {
+                                    image_failed.set(false);
+                                    retry.update(|v| *v += 1);
                                 })
-                                .on_press(move || zoom.set(1.0))
-                                .child(
-                                    text(move || format!("{:.0}%", zoom.get() * 100.0))
-                                        .text_role(ui::TextRole::Caption),
-                                ),
+                            },
+                        )),
+                )
+                .child(
+                    layer()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .px(ui::space_lg())
+                        .child(
+                            viewer_button(
+                                ui::Icon::ChevronLeft,
+                                move || i18n.tr("Previous photo", "上一张"),
+                                move || go(-1),
+                                move || loading.get() || neighbor(-1).is_none(),
+                            )
+                            .size_10(),
                         )
-                        .child(viewer_button(
-                            ui::Icon::ZoomIn,
-                            move || i18n.tr("Zoom in", "放大"),
-                            move || zoom.update(|z| *z = (*z * 1.25).min(8.0)),
-                            move || zoom.get() >= 8.0,
-                        ))
-                        .child(viewer_button(
-                            ui::Icon::Rotate,
-                            move || i18n.tr("Rotate", "旋转"),
-                            move || rotation.update(|value| *value = (*value + 1) % 4),
-                            move || !usable(),
-                        ))
-                        .child(when(
-                            move || source.with(|value| value.is_none()),
-                            move || {
-                                viewer_button(
-                                    ui::Icon::Share,
-                                    move || i18n.tr("Forward…", "转发…"),
-                                    forward,
-                                    move || busy.get() || loading.get() || !forward_allowed.get(),
-                                )
-                            },
-                        ))
+                        .child(
+                            viewer_button(
+                                ui::Icon::ChevronRight,
+                                move || i18n.tr("Next photo", "下一张"),
+                                move || go(1),
+                                move || loading.get() || neighbor(1).is_none(),
+                            )
+                            .size_10(),
+                        ),
+                )
+                .child(
+                    layer()
+                        .justify_end()
+                        .items_center()
+                        .pb(ui::space_lg())
                         .child(when(
                             move || {
-                                selected().is_some_and(|row| !available(&row)) || image_failed.get()
+                                selected()
+                                    .and_then(|row| row.caption)
+                                    .is_some_and(|caption| !caption.is_empty())
                             },
                             move || {
-                                viewer_button(
-                                    ui::Icon::Download,
-                                    move || i18n.tr("Download photo", "下载图片"),
-                                    download,
-                                    move || busy.get() || loading.get(),
-                                )
+                                view()
+                                    .max_w(relative(0.8))
+                                    .max_h_20()
+                                    .px(ui::space_lg())
+                                    .py(ui::space_sm())
+                                    .rounded(ui::radius_md())
+                                    .bg(ui::media_overlay)
+                                    .pointer_events(PointerEvents::Auto)
+                                    .child(
+                                        scroll().child(
+                                            text(move || {
+                                                selected()
+                                                    .and_then(|row| row.caption)
+                                                    .unwrap_or_default()
+                                            })
+                                            .text_role(ui::TextRole::Body)
+                                            .text_color(ui::media_overlay_foreground)
+                                            .select_text(),
+                                        ),
+                                    )
                             },
-                        ))
-                        .child(viewer_button(
-                            ui::Icon::Copy,
-                            move || i18n.tr("Copy image", "复制图片"),
-                            copy,
-                            move || !usable(),
-                        ))
-                        .child(viewer_button(
-                            ui::Icon::Save,
-                            move || i18n.tr("Save as…", "另存为…"),
-                            save,
-                            move || !usable(),
                         )),
                 ),
         )
 }
 
 #[cfg(debug_assertions)]
-pub(crate) fn detached(rows: Vec<MessageListView>, own_id: String, failed: Signal<bool>) -> View {
+pub(crate) fn detached(
+    rows: Vec<MessageListView>,
+    own_id: String,
+    mode: Signal<&'static str>,
+) -> View {
     let current = rows
         .first()
         .map(|row| row.message_id.clone())
         .unwrap_or_default();
-    viewer(
+    let camera = signal(Camera::new((1.0, 1.0), (1.0, 1.0)));
+    let failed = signal(false);
+    let result = viewer(
         Actions::detached(own_id),
         signal_with(rows, SignalEquals::Never),
         signal(current),
         signal(false),
+        signal(false),
+        signal(false),
+        signal(0),
+        signal(false),
         failed,
-        signal(false),
-        signal(0),
-        signal(1.0),
-        signal(0),
-        signal(false),
-        signal(false),
         stored(None),
-    )
+        camera,
+    );
+    effect(move || {
+        let mode = mode.get();
+        failed.set(mode == "Error");
+        camera.update(|camera| {
+            camera.rotation = 0;
+            camera.fit();
+            match mode {
+                "Zoom" => camera.zoom(2.0, (camera.viewport.0 * 0.65, camera.viewport.1 * 0.4)),
+                "Edge" => {
+                    camera.zoom(4.0, (camera.viewport.0 - 1.0, 1.0));
+                    camera.pan((-50000.0, 50000.0));
+                }
+                "Rotate" => camera.turn(),
+                _ => {}
+            }
+        });
+    });
+    result
 }

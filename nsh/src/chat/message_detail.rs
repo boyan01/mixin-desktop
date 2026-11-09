@@ -263,10 +263,17 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
     when(
         move || presence.mounted(),
         move || {
-            ui::dialog(
+            ui::dialog_with_inset(
                 presence,
                 move || actions.close_preview(),
                 detail_card(actions, shown, presence),
+                move || {
+                    if shown.with(|detail| matches!(detail, Some(Detail::Image { .. }))) {
+                        px(0.0)
+                    } else {
+                        ui::space_xl()
+                    }
+                },
             )
         },
     )
@@ -362,10 +369,10 @@ fn detail_card(
         })
         .style_when(photo, |style| {
             style
-                .bg(ui::viewer_background)
+                .bg(|| ui::viewer_background().opacity(0.0))
                 .p_0()
                 .gap_0()
-                .rounded(ui::radius_lg())
+                .rounded(px(0.0))
                 .overflow_hidden()
         })
         .style_when(user_profile, |style| {

@@ -253,7 +253,9 @@ pub fn data_directory() -> ClientResult<std::path::PathBuf> {
 
 /// Registers app-owned native controls before the macOS engine starts.
 #[cfg(target_os = "macos")]
+#[nsh_core::element::native_components(macos)]
 pub fn register_native_components(components: &nsh_platform_macos::Components) {
+    chat::register_image_input(components);
     bot::register_native_components(components);
     shell::register_native_components(components);
 }

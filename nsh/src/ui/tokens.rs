@@ -118,6 +118,8 @@ lengths! {
     picker_width = "picker-width";
     picker_height = "picker-height";
     picker_form_height = "picker-form-height";
+    viewer_toolbar_height = "viewer-toolbar-height";
+    viewer_toolbar_wide = "viewer-toolbar-wide";
     dialog_close_size = "dialog-close-size";
     /// One command of a `profile_actions` row, and the icon in it.
     profile_action_size = "profile-action-size";
@@ -298,6 +300,8 @@ colors! {
     /// The dimming layer behind modal surfaces, dark in either appearance.
     scrim_fill = "scrim";
     viewer_background = "viewer-background";
+    viewer_toolbar_fill = "viewer-toolbar-background";
+    viewer_secondary = "viewer-secondary";
     /// A count pill that does not ask for attention.
     badge_quiet = "badge-quiet";
     /// The placeholder of an avatar with no id to pick a color from.

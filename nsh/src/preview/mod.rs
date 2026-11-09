@@ -425,7 +425,7 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "photo-viewer",
-        actions: button_pages::ERROR_ACTIONS,
+        actions: button_pages::PHOTO_ACTIONS,
         mount: button_pages::photo_viewer,
     },
     Scene {

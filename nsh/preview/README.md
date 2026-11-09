@@ -8,7 +8,7 @@ use different treatments.
 There are 82 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 187 captures, grouped by scene and state. `--scenes`
+The full catalog contains 190 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -124,3 +124,21 @@ window. Group creation exposes `Next` only after selection. Forwarding has no
 selection marks or confirmation action. Both lists scroll vertically without page
 controls. Recoverable failures use secondary text; load retries are inline text
 links rather than framed buttons.
+
+
+## Image viewer review
+
+`photo-viewer` uses a conversation backdrop and the production viewer. `Zoom`,
+`Edge`, `Rotate`, and `Error` are states of that same scene. The edge state zooms
+and pans to the clamped top/right limit; failure keeps the sender and commands
+while hiding the undecodable image. Native macOS component registration is shared
+with the application so the input surface is present in CLI previews too.
+
+```sh
+python3 nsh/tool/preview.py catalog --scenes photo-viewer --label viewer-redesign-after --scheme dark --locale zh-CN
+```
+
+The captures show layout and bounded camera states, not physical trackpad gesture
+smoothness. Pure camera tests cover pointer anchoring, per-axis bounds, resize,
+rotation, invalid input and clamped input reversal. Windows/Linux wheel and pinch
+input are not yet implemented by the app-owned adapter.

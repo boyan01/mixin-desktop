@@ -41,13 +41,23 @@ impl DialogWidth {
 /// A dialog that a press on the scrim dismisses. The owner retains the surface
 /// for exit; callers guard keyboard submissions.
 pub(crate) fn dialog(presence: motion::Presence, close: impl Fn() + 'static, card: View) -> Modal {
+    dialog_with_inset(presence, close, card, space_xl)
+}
+
+/// Media may reach the window edges while ordinary detail cards keep their inset.
+pub(crate) fn dialog_with_inset(
+    presence: motion::Presence,
+    close: impl Fn() + 'static,
+    card: View,
+    inset: impl Fn() -> Points + 'static,
+) -> Modal {
     let close = stored(close);
     let dismiss = move || {
         if presence.interactive() {
             close.with(|close| close());
         }
     };
-    frame(presence, dismiss, scrim().on_press(dismiss), card)
+    frame(presence, dismiss, scrim().on_press(dismiss), card, inset)
 }
 
 /// A `dialog` that a stray press on the scrim must not discard, such as a
@@ -62,7 +72,7 @@ pub(crate) fn held_dialog(
             close();
         }
     };
-    frame(presence, dismiss, scrim(), card)
+    frame(presence, dismiss, scrim(), card, space_xl)
 }
 
 fn frame(
@@ -70,6 +80,7 @@ fn frame(
     dismiss: impl Fn() + 'static,
     scrim: View,
     card: View,
+    inset: impl Fn() -> Points + 'static,
 ) -> Modal {
     // Release background editing after native presentation records its restore target.
     dismiss_keyboard();
@@ -82,7 +93,7 @@ fn frame(
         .child(
             view()
                 .flex_1()
-                .p(space_xl())
+                .p(inset)
                 .items_center()
                 .justify_center()
                 .child(presence.backdrop(scrim))

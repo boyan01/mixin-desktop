@@ -19,7 +19,6 @@ pub(crate) enum Icon {
     ZoomIn,
     ZoomOut,
     Copy,
-    Save,
     ArrowLeft,
     Send,
     Globe,
@@ -53,6 +52,7 @@ pub(crate) enum Icon {
     Download,
     Upload,
     Close,
+    CloseCircle,
     Person,
     Bell,
     Database,
@@ -65,6 +65,7 @@ pub(crate) enum Icon {
     Disappearing,
     /// Share: a box with an arrow leaving it.
     Share,
+    Forward,
     /// Two speech bubbles: open the conversation.
     Conversation,
     /// A person: open the full profile.
@@ -118,6 +119,7 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Stop => stroke("<rect x='6' y='6' width='12' height='12' rx='2'/>"),
         Icon::Pause => stroke("<path d='M9 5v14M15 5v14'/>"),
         Icon::Microphone => asset(include_str!("../../assets/microphone.svg")),
+        Icon::Forward => asset(include_str!("../../assets/menu/forward.svg")),
         Icon::Share => asset(include_str!("../../assets/profile_share.svg")),
         Icon::Conversation => asset(include_str!("../../assets/profile_chat.svg")),
         Icon::Profile => asset(include_str!("../../assets/profile_info.svg")),
@@ -132,7 +134,6 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Copy => stroke(
             "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>",
         ),
-        Icon::Save => stroke("<path d='M5 4h11l3 3v13H5Z'/><path d='M8 4v5h7V4M8 20v-6h8v6'/>"),
         Icon::ArrowLeft => asset(include_str!("../../assets/ic_back.svg")),
         Icon::Menu => stroke("<path d='M4 6h16M4 12h16M4 18h16'/>"),
         Icon::Play => stroke("<path d='m8 5 11 7-11 7Z'/>"),
@@ -142,6 +143,7 @@ pub(crate) fn icon(icon: Icon) -> Svg {
             "../../assets/disappearing_message_indicator.svg"
         )),
         Icon::Backup => asset(include_str!("../../assets/ic_backup.svg")),
+        Icon::CloseCircle => stroke("<circle cx='12' cy='12' r='9'/><path d='m9 9 6 6m0-6-6 6'/>"),
         Icon::Close => asset(include_str!("../../assets/ic_close.svg")),
         // Center the plane's visual mass, which otherwise reads high and right.
         // The inset keeps the shifted strokes inside the icon's view box.
