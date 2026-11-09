@@ -6,7 +6,7 @@ use nsh_core::{element::ImageSrc, prelude::*};
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::tokens::{
-    TextRole, Typography, accent, avatar_empty, fg_on_accent, fg_secondary, number,
+    TextRole, Typography, accent, avatar_empty, fg_on_accent, fg_primary, fg_secondary, number,
 };
 
 /// Flutter's `avatarColors`.
@@ -116,7 +116,8 @@ pub(crate) fn avatar_view(
     size: AvatarSize,
 ) -> AvatarElement {
     let name = computed(name);
-    let color = computed(move || palette_color(&id(), &AVATAR_COLORS, avatar_empty));
+    let id = computed(id);
+    let color = computed(move || palette_color(&id.get(), &AVATAR_COLORS, avatar_empty));
     avatar()
         .name(move || Some(name.get()))
         .src(move || {
@@ -131,7 +132,13 @@ pub(crate) fn avatar_view(
         .fallback(
             text(move || placeholder_letter(&name.get()))
                 .text_role(TextRole::Headline)
-                .text_color(fg_on_accent),
+                .text_color(move || {
+                    if uuid_hash(&id.get()).is_some() {
+                        fg_on_accent()
+                    } else {
+                        fg_primary()
+                    }
+                }),
         )
         .fallback_style(move |s| s.items_center().justify_center().bg(color))
 }

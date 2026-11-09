@@ -154,10 +154,10 @@ pub(super) fn card(
     let done = available(&row);
     let transfer = Transfer::of(&row, transcript.clone());
     let expired = row.media_status == "EXPIRED";
-    let metadata = transcript.is_none() && inline_metadata(&row);
+    let metadata = (transcript.is_none() || framed) && inline_metadata(&row);
     let mine = row.sender_id == actions.account.id();
     let retry_upload = mine && matches!(row.status.as_str(), "SENDING" | "FAILED");
-    let delivery = mine.then(|| {
+    let delivery = (mine && transcript.is_none()).then(|| {
         status.unwrap_or_else(|| {
             let status = row.status.clone();
             computed(move || status.clone())

@@ -1,10 +1,10 @@
 //! One timeline row: day and unread separators, then a notice or a bubble.
-use mixin_desktop_api::MessageListView;
+use mixin_desktop_api::{MessageListView, TranscriptSummaryItem};
 use nsh_core::prelude::*;
 
 use super::{
     message_actions::{self, Actions},
-    message_appearance::{self, Frame, Inset, Stamp, bubble_surface},
+    message_appearance::{self, Frame, Inset, Stamp},
     message_content::{self, Placement},
     message_system,
     unread::Unread,
@@ -40,6 +40,8 @@ pub(super) struct Rows {
     pub sender_names: Memo<bool>,
     pub viewable: Signal<Option<(usize, usize)>>,
     pub unobstructed: Memo<bool>,
+    /// Forwarded records use chronological order and attachment-only commands.
+    pub transcript: Option<Stored<String>>,
 }
 
 impl Rows {
@@ -47,7 +49,11 @@ impl Rows {
         let i18n = self.actions.i18n;
         self.messages.with(|rows| {
             let row = rows.get(index)?;
-            let older = rows.get(index + 1);
+            let older = if self.transcript.is_some() {
+                index.checked_sub(1).and_then(|at| rows.get(at))
+            } else {
+                rows.get(index + 1)
+            };
             let day = presentation::day(i18n, row.created_at_micros);
             let new_day =
                 older.is_none_or(|older| presentation::day(i18n, older.created_at_micros) != day);
@@ -56,13 +62,15 @@ impl Rows {
                     && !older.category.starts_with("SYSTEM_")
                     && older.category != "MESSAGE_PIN"
             });
-            let continued = index
-                .checked_sub(1)
-                .and_then(|newer| rows.get(newer))
-                .is_some_and(|newer| {
-                    newer.sender_id == row.sender_id
-                        && presentation::day(i18n, newer.created_at_micros) == day
-                });
+            let newer = if self.transcript.is_some() {
+                rows.get(index + 1)
+            } else {
+                index.checked_sub(1).and_then(|at| rows.get(at))
+            };
+            let continued = newer.is_some_and(|newer| {
+                newer.sender_id == row.sender_id
+                    && presentation::day(i18n, newer.created_at_micros) == day
+            });
             Some(Line {
                 message: row.clone(),
                 mine: self.own_id.with(|id| row.sender_id == *id),
@@ -129,8 +137,10 @@ impl Rows {
         if let Some(unread) = unread {
             unread.observe_row(id, move || at.index() == 0, row_ref, history);
         }
-        let selected =
-            move || id().is_some_and(|id| actions.selected.with(|selected| selected.contains(&id)));
+        let selected = move || {
+            self.transcript.is_none()
+                && id().is_some_and(|id| actions.selected.with(|selected| selected.contains(&id)))
+        };
         let follows_sender =
             move || line.with(|line| line.as_ref().is_some_and(|line| line.follows_sender));
         view()
@@ -207,16 +217,17 @@ impl Rows {
                     row,
                     actions,
                     Placement {
-                        target: Some(target),
-                        transcript: None,
-                        status: Some(status),
+                        target: self.transcript.is_none().then_some(target),
+                        transcript: self.transcript.map(|root| root.with(|root| root.clone())),
+                        status: self.transcript.is_none().then_some(status),
                         framed: true,
                     },
                 ),
                 None => view().hidden().into_element(),
             })
         });
-        let own_status = move || (mine() && frame.get().delivery).then_some(status);
+        let own_status =
+            move || (self.transcript.is_none() && mine() && frame.get().delivery).then_some(status);
         let stamp = move |placed: Stamp| {
             dynamic(move || {
                 let row = content.get();
@@ -228,8 +239,7 @@ impl Rows {
                 })
             })
         };
-        let edge = ui::space_lg() + ui::bubble_nip_width();
-        let selecting = move || !actions.selected.with(Vec::is_empty);
+        let selecting = move || self.transcript.is_none() && !actions.selected.with(Vec::is_empty);
         view()
             .flex_row()
             .items_start()
@@ -260,17 +270,7 @@ impl Rows {
                     }))
             }))
             .child(
-                view()
-                    .flex_1()
-                    .min_w_0()
-                    .py(ui::space_2xs())
-                    .pl(edge)
-                    .pr(ui::message_far_edge())
-                    .items_start()
-                    .style_when(avatar, |style| style.pl(ui::bubble_nip_width()))
-                    .style_when(mine, |style| {
-                        style.pl(ui::message_far_edge()).pr(edge).items_end()
-                    })
+                content_lane(mine, avatar)
                     .child(when(
                         move || others() && first_of_sender(),
                         move || message_appearance::sender(message, actions),
@@ -302,49 +302,49 @@ impl Rows {
                                             )
                                         }))
                                         .child(
-                                            view()
-                                                .relative()
-                                                .flex_shrink(1.0)
-                                                .min_w_0()
-                                                .rounded(ui::radius_md())
-                                                .style_when(surface, move |style| {
-                                                    style
-                                                        .bg(move || {
-                                                            bubble_surface(mine() && !neutral.get())
-                                                        })
-                                                        .shadow_xs()
-                                                        .shadow_color(ui::bubble_shadow())
-                                                })
-                                                .child(message_actions::menu(
-                                                    message,
-                                                    actions,
-                                                    view()
-                                                        .min_w_0()
-                                                        .rounded(ui::radius_md())
-                                                        .style_when(
-                                                            move || !frame.get().own_bubble,
-                                                            |style| style.overflow_hidden(),
-                                                        )
-                                                        .child(body),
-                                                ))
-                                                .child(when(highlighted, move || {
-                                                    view()
-                                                        .absolute()
-                                                        .inset_0()
-                                                        .rounded(ui::radius_md())
-                                                        .bg(move || {
-                                                            if !surface() {
-                                                                ui::bubble_highlight_media()
-                                                            } else if mine() {
-                                                                ui::bubble_highlight_out()
-                                                            } else {
-                                                                ui::bubble_highlight_in()
-                                                            }
-                                                        })
-                                                        .bind_opacity(&highlight_opacity)
-                                                        .pointer_events(PointerEvents::None)
-                                                }))
-                                                .child(when(
+                                            message_appearance::bubble(
+                                                view(),
+                                                move || mine() && !neutral.get(),
+                                                surface,
+                                            )
+                                            .child({
+                                                let body = view()
+                                                    .min_w_0()
+                                                    .rounded(ui::radius_md())
+                                                    .style_when(
+                                                        move || !frame.get().own_bubble,
+                                                        |style| style.overflow_hidden(),
+                                                    )
+                                                    .child(body);
+                                                if let Some(root) = self.transcript {
+                                                    super::message_transcript::row_menu(
+                                                        message, root, actions, body,
+                                                    )
+                                                    .into_element()
+                                                } else {
+                                                    message_actions::menu(message, actions, body)
+                                                        .into_element()
+                                                }
+                                            })
+                                            .child(when(highlighted, move || {
+                                                view()
+                                                    .absolute()
+                                                    .inset_0()
+                                                    .rounded(ui::radius_md())
+                                                    .bg(move || {
+                                                        if !surface() {
+                                                            ui::bubble_highlight_media()
+                                                        } else if mine() {
+                                                            ui::bubble_highlight_out()
+                                                        } else {
+                                                            ui::bubble_highlight_in()
+                                                        }
+                                                    })
+                                                    .bind_opacity(&highlight_opacity)
+                                                    .pointer_events(PointerEvents::None)
+                                            }))
+                                            .child(
+                                                when(
                                                     move || frame.get().stamp == Stamp::Inline,
                                                     move || {
                                                         view()
@@ -359,7 +359,8 @@ impl Rows {
                                                             .pointer_events(PointerEvents::None)
                                                             .child(stamp(Stamp::Inline))
                                                     },
-                                                )),
+                                                ),
+                                            ),
                                         ),
                                 )
                                 .child(when(
@@ -381,6 +382,111 @@ impl Rows {
                     ),
             )
     }
+}
+
+fn content_lane(
+    mine: impl Fn() -> bool + Copy + 'static,
+    avatar: impl Fn() -> bool + Copy + 'static,
+) -> View {
+    let edge = ui::space_lg() + ui::bubble_nip_width();
+    view()
+        .flex_1()
+        .min_w_0()
+        .py(ui::space_2xs())
+        .pl(edge)
+        .pr(ui::message_far_edge())
+        .items_start()
+        .style_when(avatar, |style| style.pl(ui::bubble_nip_width()))
+        .style_when(mine, move |style| {
+            style.pl(ui::message_far_edge()).pr(edge).items_end()
+        })
+}
+
+/// A summary has no original identity or media. Use the chat's incoming lane,
+/// name placeholder, bubble and text reader without constructing fake messages.
+pub(super) fn summary(
+    row: impl Fn() -> Option<TranscriptSummaryItem> + Copy + 'static,
+    first: impl Fn() -> bool + Copy + 'static,
+    last: impl Fn() -> bool + Copy + 'static,
+    actions: Actions,
+) -> View {
+    let appearance = use_context::<Appearance>().expect("Home provides chat appearance");
+    let avatar = move || appearance.show_avatar();
+    let name = move || row().map(|row| row.sender_name).unwrap_or_default();
+    let body = Frame::TEXT.padded(
+        view()
+            .min_w_0()
+            .text_size(move || appearance.primary_size())
+            .child(super::message_text::summary(
+                move || {
+                    row()
+                        .map(|row| presentation::preview(actions.i18n, &row.category, &row.content))
+                        .unwrap_or_default()
+                },
+                actions,
+            )),
+    );
+    view().style_when(first, |style| style.pt_2()).child(
+        view()
+            .flex_row()
+            .items_start()
+            .child(when(avatar, move || {
+                view()
+                    .ml_2()
+                    .size_8()
+                    .flex_shrink_0()
+                    .child(when(first, move || {
+                        ui::avatar_view(
+                            String::new,
+                            move || name().into(),
+                            String::new,
+                            ui::AvatarSize::Compact,
+                        )
+                    }))
+            }))
+            .child(
+                content_lane(|| false, avatar)
+                    .child(when(first, move || {
+                        view()
+                            .ml(ui::message_name_inset() - ui::bubble_nip_width())
+                            .mb(ui::space_2xs())
+                            .child(message_appearance::sender_label(name, String::new))
+                    }))
+                    // Match the chat row's width-first wrapping hierarchy.
+                    .child(
+                        view().flex_row().min_w_0().max_w(relative(1.0)).child(
+                            view().flex_shrink(1.0).min_w_0().items_end().child(
+                                view()
+                                    .flex_row()
+                                    .relative()
+                                    .min_w_0()
+                                    .max_w(relative(1.0))
+                                    .child(when(
+                                        move || !avatar() && last(),
+                                        move || {
+                                            message_appearance::nip(
+                                                || false,
+                                                computed(|| false),
+                                                || false,
+                                                animated_value(0.0),
+                                            )
+                                        },
+                                    ))
+                                    .child(
+                                        message_appearance::bubble(view(), || false, || true)
+                                            .child(
+                                                view()
+                                                    .min_w_0()
+                                                    .rounded(ui::radius_md())
+                                                    .overflow_hidden()
+                                                    .child(body),
+                                            ),
+                                    ),
+                            ),
+                        ),
+                    ),
+            ),
+    )
 }
 
 /// Fixed rows in a chat's own list, for the debug preview. `messages` is newest
@@ -454,6 +560,7 @@ pub(crate) fn detached_list(
         sender_names: computed(move || sender_names),
         viewable,
         unobstructed: computed(|| true),
+        transcript: None,
     };
     view().flex_1().min_h_0().on_layout(media_viewport).child(
         reveal.surface(view().flex_1().min_h_0()).child(

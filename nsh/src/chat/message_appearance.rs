@@ -20,6 +20,25 @@ pub(super) fn bubble_surface(mine: bool) -> AdaptiveColor {
     }
 }
 
+/// The chat bubble frame, including its fill and shadow for framed content.
+pub(super) fn bubble<S: Styled>(
+    style: S,
+    mine: impl Fn() -> bool + Copy + 'static,
+    filled: impl Fn() -> bool + Copy + 'static,
+) -> S {
+    style
+        .relative()
+        .flex_shrink(1.0)
+        .min_w_0()
+        .rounded(ui::radius_md())
+        .style_when(filled, move |style| {
+            style
+                .bg(move || bubble_surface(mine()))
+                .shadow_xs()
+                .shadow_color(ui::bubble_shadow())
+        })
+}
+
 /// How far a body stands off its bubble: Flutter's `MessageBubble.padding`.
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Inset {
@@ -377,6 +396,17 @@ pub(super) fn detail_icon() -> View {
         )
 }
 
+pub(super) fn sender_label(
+    name: impl Fn() -> String + 'static,
+    id: impl Fn() -> String + 'static,
+) -> Text {
+    let appearance = use_context::<Appearance>().expect("Home provides chat appearance");
+    text(name)
+        .text_size(move || appearance.secondary_size())
+        .text_color(move || ui::name_color(&id()))
+        .number_of_lines(1)
+}
+
 pub(super) fn sender(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
     actions: Actions,
@@ -397,14 +427,10 @@ pub(super) fn sender(
                 actions.show_user(row.sender_id);
             }
         })
-        .child(
-            text(move || message().map(|row| row.sender_name).unwrap_or_default())
-                .text_size(move || appearance.secondary_size())
-                .text_color(move || {
-                    ui::name_color(&message().map(|row| row.sender_id).unwrap_or_default())
-                })
-                .number_of_lines(1),
-        )
+        .child(sender_label(
+            move || message().map(|row| row.sender_name).unwrap_or_default(),
+            move || message().map(|row| row.sender_id).unwrap_or_default(),
+        ))
         .child(when(
             move || appearance.show_identity(),
             move || {

@@ -67,7 +67,7 @@ pub(super) fn body(row: MessageListView, actions: Actions, placement: Placement)
     let mine = row.sender_id == actions.account.id();
     // A status at the end of the text needs room there, not just over it.
     let room = (framed && frame.stamp == Stamp::Inline)
-        .then(|| message_appearance::stamp_reserve(&row, mine && frame.delivery));
+        .then(|| message_appearance::stamp_reserve(&row, mine && frame.delivery && !in_transcript));
     let quoted = row
         .quote_message_id
         .as_ref()

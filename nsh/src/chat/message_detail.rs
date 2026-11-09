@@ -360,6 +360,13 @@ fn detail_card(
         shown.with(|detail| matches!(detail, Some(Detail::Image { .. } | Detail::Video { .. })))
     };
     let sticker = move || shown.with(|detail| matches!(detail, Some(Detail::Sticker(_))));
+    let transcript = move || {
+        shown.with(|detail| match detail {
+            Some(Detail::TranscriptSummary { .. }) => true,
+            Some(Detail::Message(row)) => row.category.ends_with("_TRANSCRIPT"),
+            _ => false,
+        })
+    };
 
     view()
         .bg(ui::surface_pane)
@@ -367,6 +374,7 @@ fn detail_card(
         .w_full()
         .min_h_0()
         .gap_3()
+        .style_when(transcript, super::message_transcript::surface)
         .style_when(qr, |style| {
             style
                 .flex_auto()
@@ -411,7 +419,7 @@ fn detail_card(
                 .gap_2()
                 .style_when(qr, |style| style.items_center())
                 .style_when(
-                    move || user_profile() || photo() || sticker(),
+                    move || user_profile() || photo() || sticker() || transcript(),
                     |style| style.hidden(),
                 )
                 .child(when(qr, move || {
@@ -430,6 +438,9 @@ fn detail_card(
                     move || actions.close_preview(),
                 )),
         )
+        .child(when(transcript, move || {
+            super::message_transcript::header(actions)
+        }))
         .child(dynamic(move || {
             let row = shown.get();
             untracked(|| match row {
@@ -529,7 +540,7 @@ fn detail_card(
             .text_role(ui::TextRole::Body)
             .select_text()
             .style_when(
-                move || user_profile() || photo() || sticker(),
+                move || user_profile() || photo() || sticker() || transcript(),
                 |style| style.hidden(),
             ),
         )

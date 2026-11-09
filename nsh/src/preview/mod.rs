@@ -140,7 +140,7 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "transcript",
-        actions: button_pages::ERROR_ACTIONS,
+        actions: button_pages::TRANSCRIPT_ACTIONS,
         mount: button_pages::transcript,
     },
     Scene {

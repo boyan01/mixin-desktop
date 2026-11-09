@@ -264,3 +264,22 @@ Closing the modal or locking the account pauses or disposes playback. Failure st
 attachments opened from a transcript retain their transcript root for saving;
 forwarding is conditional on the message policy and is omitted for transcript
 children. Closing a nested video returns to the previous detail. Live streams keep their existing native-control surface.
+
+## Forwarded chat records
+
+Full transcripts and nested summaries use the same centered 600pt-wide dialog,
+clamped to the available window. The leading close command becomes Back when a
+nested record is open; equal leading/trailing slots keep the title centered.
+Only the content list scrolls, without page buttons. Full records load further
+100-message batches near the end, and refresh their loaded pages on message events.
+
+Full records reuse the conversation's message rows in chronological order: sender
+groups, own/incoming bubbles, date chips, media and encryption/time stamps. They
+retain the transcript root for attachment operations. Conversation selection,
+delivery checks, delete and recall commands do not belong to these read-only rows.
+
+Nested summaries retain only names, categories and text. Render them through the chat row module using its incoming lane, avatar
+placeholders, sender labels, bubble frame and selectable text reader. Consecutive
+senders share a group; a quiet limitation note stays below the list. Do not invent timestamps, sender identities or attachments
+that the summary wire format does not contain. Errors remain in the same dialog
+with a quiet retry command.

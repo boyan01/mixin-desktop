@@ -190,7 +190,7 @@ fn chat_controls(kind: &str, actions: Actions) -> View {
         fixtures::messages::text_rows(),
         failed,
     );
-    if kind == "qr" || kind == "markdown-error" {
+    if matches!(kind, "qr" | "markdown-error" | "transcript" | "summary") {
         dialog_host(content)
     } else {
         host(content)
@@ -365,8 +365,32 @@ pub(super) fn empty_filtered(_: Actions) -> View {
 }
 
 pub(super) fn transcript(actions: Actions) -> View {
-    chat_controls("transcript", actions)
+    prepare();
+    let mode = mode(actions, TRANSCRIPT_ACTIONS);
+    let failed = signal(false);
+    effect(move || failed.set(mode.get() == "Error"));
+    dialog_host(dynamic(move || {
+        let rows = if mode.get() == "Media" {
+            let mut rows = fixtures::messages::photo_rows();
+            rows.retain(|row| row.media_status == "DONE");
+            rows.extend(fixtures::messages::media_rows().into_iter().filter(|row| {
+                row.category.ends_with("_STICKER")
+                    && row.sticker_asset_type.as_deref() != Some("JSON")
+            }));
+            rows.sort_by_key(|row| std::cmp::Reverse(row.created_at_micros));
+            for (index, row) in rows.iter_mut().enumerate() {
+                row.message_id = format!("00000000-0000-4000-8000-{:012}", 5_000 + index);
+            }
+            rows
+        } else {
+            fixtures::messages::text_rows()
+        };
+        untracked(|| {
+            crate::chat::preview_buttons("transcript", fixtures::USER_ID.into(), rows, failed)
+        })
+    }))
 }
+pub(super) const TRANSCRIPT_ACTIONS: &[&str] = &["Media", "Error", "Reset"];
 pub(super) fn contact_rename(_: Actions) -> View {
     prepare();
     host(crate::conversation::preview_name(

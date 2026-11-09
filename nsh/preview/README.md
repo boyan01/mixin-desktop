@@ -8,7 +8,7 @@ use different treatments.
 There are 83 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 197 captures, grouped by scene and state. `--scenes`
+The full catalog contains 198 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -181,3 +181,22 @@ The photo and video viewers share `chat/media_viewer.rs` for sender identity,
 header layout and icon commands. Video adds a dedicated seek/volume/speed strip.
 Review both scenes after changing their shared chrome. Account-backed forwarding
 and saving, and Windows/Linux playback remain separate validation requirements.
+
+## Forwarded chat record review
+
+`transcript` and `transcript-summary` render the production 600pt dialog shell,
+centered header and leading close/back command. The full transcript reuses the
+chat's real message rows in chronological order, without delivery checks or page
+buttons. Its `Media` state adds local photos and a static sticker. `Error` remains
+inside the same dialog. The summary uses the chat row module and the same bubble/text styling, with a quiet footer;
+its data has no original timestamps, sender IDs or attachment assets.
+
+Capture these two scenes individually when the scene menu's visible range does
+not include both entries. Narrow/light captures review wrapping and dialog bounds.
+Fixtures do not verify live account paging, attachment commands or nested Back
+navigation. Windows/Linux presentation is unverified.
+
+The local review gallery is `output/transcript-review/index.html`. It includes
+before/after comparisons, dark/light and narrow captures, media/error states, and
+close-ups of the text-wrapping and anonymous-avatar contrast fixes found during
+this review.

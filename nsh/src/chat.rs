@@ -188,6 +188,7 @@ pub(crate) fn screen(
         sender_names: computed(move || group || header.with(|row| row.is_bot_group)),
         viewable,
         unobstructed,
+        transcript: None,
     };
     // Escape steps back one layer: the selection, then the side panel. The composer takes
     // its own Escape for a quote, and inputs keep theirs.

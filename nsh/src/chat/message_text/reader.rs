@@ -75,8 +75,6 @@ pub(in crate::chat) fn read(
     root: Option<String>,
     room: Option<f32>,
 ) -> impl IntoElement {
-    let appearance =
-        use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
     let navigation = use_context::<crate::navigation::ChatNavigation>();
     let names = use_context::<MentionNames>();
     let source = stored(source.to_owned());
@@ -105,27 +103,49 @@ pub(in crate::chat) fn read(
         .on_text_selection_change(move |event: &TextSelectionEvent| {
             id.with(|id| root.with(|root| selection.report(id, root.as_deref(), &event.text)));
         })
-        .child(
-            text("")
-                .flex_none()
-                .min_w_0()
-                .text_size(move || appearance.primary_size())
-                .line_height(MESSAGE_LINE_HEIGHT)
-                .text_color(move || nsh_base::theme().foreground)
-                .child(dynamic(move || {
-                    let mut out = Vec::new();
-                    mapped.with(|document| spans(document, open, &mut out));
-                    if out.is_empty() {
-                        // An empty message keeps its line.
-                        out.push(text("\u{200B}").into_element());
-                    }
-                    out.extend(
-                        room.get()
-                            .map(|class| view().app_class(class).into_element()),
-                    );
-                    out
-                })),
-        )
+        .child(text_frame().child(dynamic(move || {
+            let mut out = Vec::new();
+            mapped.with(|document| spans(document, open, &mut out));
+            if out.is_empty() {
+                // An empty message keeps its line.
+                out.push(text("\u{200B}").into_element());
+            }
+            out.extend(
+                room.get()
+                    .map(|class| view().app_class(class).into_element()),
+            );
+            out
+        })))
+}
+
+fn text_frame() -> Text {
+    let appearance =
+        use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
+    text("")
+        .flex_none()
+        .min_w_0()
+        .text_size(move || appearance.primary_size())
+        .line_height(MESSAGE_LINE_HEIGHT)
+        .text_color(move || nsh_base::theme().foreground)
+}
+
+/// Summary text uses the same selectable, linked spans as chat messages, without
+/// reporting a selection against a nonexistent original message ID.
+pub(in crate::chat) fn summary(
+    source: impl Fn() -> String + Copy + 'static,
+    actions: Actions,
+) -> View {
+    let mapped = computed(move || super::document(&source(), &Default::default(), ""));
+    let conversation = stored(String::new());
+    let open = move |url: String| open_link(actions, conversation, url);
+    view()
+        .min_w_0()
+        .selectable(true)
+        .child(text_frame().child(dynamic(move || {
+            let mut out = Vec::new();
+            mapped.with(|document| spans(document, open, &mut out));
+            out
+        })))
 }
 
 /// The spans of `document`'s paragraphs: links press, highlights stand out.
