@@ -1,5 +1,6 @@
 mod circles;
 mod info;
+mod invite;
 mod members;
 mod shared;
 mod user;
@@ -13,7 +14,7 @@ use std::{future::Future, rc::Rc, sync::Arc};
 use futures::StreamExt as _;
 use mixin_desktop_api::{
     AccountClient, ClientResult, ConversationDetailItem, ConversationListData,
-    ConversationParticipantItem, SharedAppItem,
+    ConversationParticipantItem, SharedAppItem, UserProfileItem,
 };
 use nsh_base::alert_dialog;
 use nsh_core::prelude::*;
@@ -32,31 +33,29 @@ enum Page {
     Expiry,
     Circles,
     Shared,
-    Invite,
-    Profile,
+    Description,
+    Groups,
     Apps,
-    EditName,
 }
 
 impl Page {
     fn title(self) -> &'static str {
         match self {
             Self::Info => tr("Chat info", "聊天详情"),
-            Self::Edit => tr("Edit group", "编辑群组"),
+            Self::Edit => tr("Edit name", "编辑名称"),
             Self::Members => tr("Group participants", "群组成员"),
             Self::Expiry => tr("Disappearing messages", "阅后即焚"),
             Self::Circles => tr("Circles", "圈子"),
             Self::Shared => tr("Shared media", "共享媒体"),
-            Self::Invite => tr("Invite to group", "邀请加入群组"),
-            Self::Profile => tr("Profile", "个人资料"),
+            Self::Description => tr("Group description", "群公告"),
+            Self::Groups => tr("Groups in common", "共同群组"),
             Self::Apps => tr("Shared apps", "共享应用"),
-            Self::EditName => tr("Edit name", "编辑名称"),
         }
     }
 
     /// The profile flow draws its own header and Back behavior.
     fn profile_flow(self) -> bool {
-        matches!(self, Self::Profile | Self::Apps | Self::EditName)
+        matches!(self, Self::Apps)
     }
 }
 
@@ -69,7 +68,8 @@ struct State {
     close: Stored<Rc<dyn Fn()>>,
     row: Signal<Option<ConversationListData>>,
     detail: Signal<Option<ConversationDetailItem>>,
-    biography: Signal<String>,
+    profile: Signal<Option<UserProfileItem>>,
+    creator: Signal<Option<String>>,
     shared_apps_preview: Signal<Vec<SharedAppItem>>,
     members: Signal<Vec<ConversationParticipantItem>>,
     page: Signal<Page>,
@@ -78,8 +78,8 @@ struct State {
     loading: Signal<bool>,
     refreshing: Signal<bool>,
     failed: Signal<bool>,
-    /// Survives Back from Edit group, so an unsaved edit is not lost.
-    edit_draft: Stored<Option<(String, String)>>,
+    /// Name and description drafts survive Back independently.
+    edit_draft: Stored<(Option<String>, Option<String>)>,
 }
 
 impl State {
@@ -127,7 +127,9 @@ impl State {
     }
 
     fn can_manage(self) -> bool {
-        matches!(self.role().as_deref(), Some("OWNER" | "ADMIN"))
+        self.row
+            .with(|row| row.as_ref().is_some_and(|row| row.status != 3))
+            && matches!(self.role().as_deref(), Some("OWNER" | "ADMIN"))
     }
 
     fn reload(self) {
@@ -240,7 +242,8 @@ pub(crate) fn screen(
         close: stored(Rc::new(close) as Rc<dyn Fn()>),
         row: signal_with(None, SignalEquals::Never),
         detail: signal_with(None, SignalEquals::Never),
-        biography: signal(String::new()),
+        profile: signal_with(None, SignalEquals::Never),
+        creator: signal(None),
         shared_apps_preview: signal_with(Vec::new(), SignalEquals::Never),
         members: signal_with(Vec::new(), SignalEquals::Never),
         page: signal(Page::Info),
@@ -249,7 +252,7 @@ pub(crate) fn screen(
         loading: signal(true),
         refreshing: signal(false),
         failed: signal(false),
-        edit_draft: stored(None),
+        edit_draft: stored((None, None)),
     };
     effect(move || {
         let _refresh = state.refresh.get();
@@ -265,32 +268,39 @@ pub(crate) fn screen(
                     access.conversation_participants(id)
                 )?;
                 let row = rows.pop();
-                let (biography, shared_apps_preview) = match row.as_ref() {
+                let (profile, shared_apps_preview, creator) = match row.as_ref() {
                     Some(row) if row.category != "GROUP" && !row.owner_id.is_empty() => {
                         let access = client.user();
                         let (profile, apps) = futures::try_join!(
                             access.user_profile(Some(row.owner_id.clone()), None),
                             access.local_shared_apps(row.owner_id.clone())
                         )?;
+                        let creator = if profile.as_ref().is_some_and(|profile| profile.is_bot) {
+                            access.bot_creator_id(row.owner_id.clone()).await?
+                        } else {
+                            None
+                        };
                         (
-                            profile.map(|profile| profile.biography).unwrap_or_default(),
+                            profile,
                             apps.into_iter().take(4).collect::<Vec<_>>(),
+                            creator,
                         )
                     }
-                    _ => (String::new(), Vec::new()),
+                    _ => (None, Vec::new(), None),
                 };
-                Ok((detail, row, members, biography, shared_apps_preview))
+                Ok((detail, row, members, profile, shared_apps_preview, creator))
             })
             .await;
             let mut removed = false;
             match result {
-                Ok((detail, row, members, biography, shared_apps_preview)) => {
+                Ok((detail, row, members, profile, shared_apps_preview, creator)) => {
                     removed = row.is_none() && state.row.with_untracked(Option::is_some);
                     batch(|| {
                         state.detail.set(Some(detail));
                         state.row.set(row);
                         state.members.set(members);
-                        state.biography.set(biography);
+                        state.profile.set(profile);
+                        state.creator.set(creator);
                         state.shared_apps_preview.set(shared_apps_preview);
                     });
                 }
@@ -329,33 +339,18 @@ pub(crate) fn screen(
 fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyElement {
     match page {
         Page::Info => info::screen(state).into_element(),
-        Page::Edit => info::edit(state).into_element(),
+        Page::Edit => info::edit(state, false).into_element(),
         Page::Members => members::screen(state).into_element(),
         Page::Expiry => info::expiry(state).into_element(),
         Page::Circles => circles::screen(state).into_element(),
         Page::Shared => shared::screen(state, target).into_element(),
-        Page::Invite => info::invite(state).into_element(),
-        Page::Profile => user::profile_at(
+        Page::Description => info::edit(state, true).into_element(),
+        Page::Groups => user::groups(state.client(), state.owner_id(), state.failed).into_element(),
+        Page::Apps => user::profile_at(
             state.client(),
             state.owner_id(),
-            user::Destination::Profile,
+            user::Destination::Apps,
             move || state.page.set(Page::Info),
-        )
-        .into_element(),
-        Page::Apps | Page::EditName => user::profile_at(
-            state.client(),
-            state.owner_id(),
-            if page == Page::Apps {
-                user::Destination::Apps
-            } else {
-                user::Destination::EditName
-            },
-            move || {
-                batch(|| {
-                    state.reload();
-                    state.page.set(Page::Info);
-                });
-            },
         )
         .into_element(),
     }
@@ -371,6 +366,11 @@ pub(crate) fn preview_page(
     failed: Signal<bool>,
     media: Vec<mixin_desktop_api::MessageListView>,
 ) -> impl IntoElement {
+    let profile = users
+        .iter()
+        .find(|user| user.user_id == row.owner_id)
+        .cloned();
+    let bot = profile.as_ref().is_some_and(|profile| profile.is_bot);
     let state = State {
         owner: Owner::current(),
         account: stored(None),
@@ -382,16 +382,34 @@ pub(crate) fn preview_page(
             Some(ConversationDetailItem {
                 conversation_id: row.conversation_id,
                 name: row.name,
-                announcement: "Design review and release planning".into(),
-                code_url: "https://mixin.one/codes/preview-invitation".into(),
+                announcement: if kind == "info-long" {
+                    "设计评审与发布计划。\nReview updates, implementation notes and release milestones.\n".repeat(6)
+                } else {
+                    "Design review and release planning".into()
+                },
+                code_url: "https://mixin.one/codes/5d0c3b8e-91a4-4f27-b6e2-8c1f4a7d2e90".into(),
                 created_at_millis: 1_793_610_000_000,
                 mute_until_millis: 0,
                 expire_in: 0,
             }),
             SignalEquals::Never,
         ),
-        biography: signal(String::new()),
-        shared_apps_preview: signal_with(Vec::new(), SignalEquals::Never),
+        profile: signal_with(profile, SignalEquals::Never),
+        creator: signal(bot.then(|| "c2e84b19-0a6f-47d3-b5c1-7e39f2d8a540".into())),
+        shared_apps_preview: signal_with(
+            if bot {
+                vec![SharedAppItem {
+                    app_id: "c2e84b19-0a6f-47d3-b5c1-7e39f2d8a540".into(),
+                    name: "Mixin Tools".into(),
+                    icon_url: concat!(env!("CARGO_MANIFEST_DIR"), "/assets/logo.png").into(),
+                    description: String::new(),
+                    home_uri: String::new(),
+                }]
+            } else {
+                Vec::new()
+            },
+            SignalEquals::Never,
+        ),
         members: signal_with(members, SignalEquals::Never),
         page: signal(Page::Info),
         refresh: signal(0),
@@ -399,7 +417,7 @@ pub(crate) fn preview_page(
         loading: signal(false),
         refreshing: signal(false),
         failed,
-        edit_draft: stored(None),
+        edit_draft: stored((None, None)),
     };
     if kind == "shared" {
         state.page.set(Page::Shared);
@@ -419,15 +437,42 @@ pub(crate) fn preview_page(
     if kind == "add-members" {
         return members::preview_add(state, users).into_element();
     }
+    if kind == "invite" {
+        return invite::card(state, || {}, failed).into_element();
+    }
     let page = match kind {
         "edit" => Page::Edit,
+        "description" => Page::Description,
         "expiry" => Page::Expiry,
         "members" => Page::Members,
-        "info" => Page::Info,
-        _ => Page::Invite,
+        "info" | "info-long" => Page::Info,
+        _ => Page::Info,
     };
     state.page.set(page);
-    frame(state, page_body(state, page, signal(None))).into_element()
+    frame(
+        state,
+        dynamic(move || {
+            let page = state.page.get();
+            untracked(|| match page {
+                Page::Groups => user::groups_view(
+                    signal_with(Vec::new(), SignalEquals::Never),
+                    signal(false),
+                    state.failed,
+                    signal(0),
+                    |_| {},
+                )
+                .into_element(),
+                Page::Apps => user::preview_apps(
+                    state.shared_apps_preview.get_untracked(),
+                    state.failed,
+                    move || state.page.set(Page::Info),
+                )
+                .into_element(),
+                _ => page_body(state, page, signal(None)),
+            })
+        }),
+    )
+    .into_element()
 }
 
 #[cfg(debug_assertions)]
@@ -437,9 +482,16 @@ fn frame(state: State, content: impl IntoElement) -> View {
     view()
         .flex_1()
         .min_h_0()
+        .bg(ui::surface_popover)
         .child(
             parts::page_header(
-                move || state.page.get().title(),
+                move || {
+                    if state.page.get() == Page::Info {
+                        ""
+                    } else {
+                        state.page.get().title()
+                    }
+                },
                 Some(
                     parts::back_button(move || state.page.set(Page::Info)).style_when(
                         move || state.page.get() == Page::Info,
@@ -452,7 +504,11 @@ fn frame(state: State, content: impl IntoElement) -> View {
                 )),
             )
             .style_when(
-                move || state.page.get().profile_flow(),
+                move || state.page.get() == Page::Info,
+                |style| style.border_color(ui::surface_popover),
+            )
+            .style_when(
+                move || state.page.get().profile_flow() || state.page.get() == Page::Members,
                 |style| style.hidden(),
             ),
         )

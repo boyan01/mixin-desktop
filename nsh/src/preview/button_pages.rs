@@ -158,7 +158,7 @@ fn conversation(kind: &str, actions: Actions) -> View {
     let mut row = fixtures::conversations::stress_rows().remove(0);
     row.category = "GROUP".into();
     row.name = "设计评审".into();
-    host(crate::conversation::preview_page(
+    let content = crate::conversation::preview_page(
         kind,
         fixtures::USER_ID.into(),
         row,
@@ -166,7 +166,12 @@ fn conversation(kind: &str, actions: Actions) -> View {
         fixtures::users(),
         failed,
         fixtures::messages::photo_rows(),
-    ))
+    );
+    if kind == "invite" {
+        dialog_host(content)
+    } else {
+        host(content)
+    }
 }
 pub(super) fn edit_group(actions: Actions) -> View {
     conversation("edit", actions)
@@ -505,8 +510,100 @@ pub(super) fn proxies(actions: Actions) -> View {
     let (_, _, failed) = state(actions);
     host(crate::settings::preview_proxies(failed))
 }
+pub(super) const INFO_ACTIONS: &[&str] = &[
+    "Long description",
+    "Member",
+    "Exited",
+    "Edit name",
+    "Edit description",
+    "Error",
+    "Reset",
+];
+pub(super) const CONTACT_INFO_ACTIONS: &[&str] = &[
+    "Long bio",
+    "Stranger",
+    "Blocked",
+    "Bot",
+    "Edit name",
+    "Error",
+    "Reset",
+];
+
 pub(super) fn info(actions: Actions) -> View {
-    conversation("info", actions)
+    prepare();
+    let mode = mode(actions, INFO_ACTIONS);
+    host(dynamic(move || {
+        let mode = mode.get();
+        let mut row = fixtures::conversations::stress_rows().remove(0);
+        row.category = "GROUP".into();
+        row.name = "设计评审".into();
+        if mode == "Exited" {
+            row.status = 3;
+        }
+        let mut members = fixtures::participants();
+        if mode == "Member" {
+            for member in &mut members {
+                if member.user_id == fixtures::USER_ID {
+                    member.role = None;
+                }
+            }
+        }
+        let kind = match mode {
+            "Edit name" => "edit",
+            "Edit description" => "description",
+            "Long description" => "info-long",
+            _ => "info",
+        };
+        untracked(|| {
+            crate::conversation::preview_page(
+                kind,
+                fixtures::USER_ID.into(),
+                row,
+                members,
+                fixtures::users(),
+                signal(mode == "Error"),
+                fixtures::messages::photo_rows(),
+            )
+        })
+    }))
+}
+
+pub(super) fn contact_info(actions: Actions) -> View {
+    prepare();
+    let mode = mode(actions, CONTACT_INFO_ACTIONS);
+    host(dynamic(move || {
+        let mode = mode.get();
+        let mut users = fixtures::users();
+        let user = &mut users[0];
+        user.relationship = match mode {
+            "Stranger" => "STRANGER",
+            "Blocked" => "BLOCKING",
+            _ => "FRIEND",
+        }
+        .into();
+        user.is_bot = mode == "Bot";
+        if mode == "Long bio" {
+            user.biography = "设计与工程，记录产品改进和发布计划。\nLong biographies remain readable in a narrow chat sidebar.\n".repeat(6);
+        }
+        let mut row = fixtures::conversations::stress_rows().remove(0);
+        row.category = "CONTACT".into();
+        row.owner_id = user.user_id.clone();
+        row.name = user.full_name.clone();
+        row.identity_number = user.identity_number.clone();
+        row.relationship = user.relationship.clone();
+        row.is_bot = user.is_bot;
+        untracked(|| {
+            crate::conversation::preview_page(
+                if mode == "Edit name" { "edit" } else { "info" },
+                fixtures::USER_ID.into(),
+                row,
+                Vec::new(),
+                users,
+                signal(mode == "Error"),
+                Vec::new(),
+            )
+        })
+    }))
 }
 pub(super) fn shared_media(actions: Actions) -> View {
     conversation("shared", actions)
@@ -554,6 +651,7 @@ pub(super) fn contact_apps(actions: Actions) -> View {
             })
             .collect(),
         failed,
+        || {},
     ))
 }
 pub(super) fn pinned_messages(actions: Actions) -> View {

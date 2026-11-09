@@ -311,3 +311,29 @@ placeholders, sender labels, bubble frame and selectable text reader. Consecutiv
 senders share a group; a quiet limitation note stays below the list. Do not invent timestamps, sender identities or attachments
 that the summary wire format does not contain. Errors remain in the same dialog
 with a quiet retry command.
+
+## Chat information sidebar
+
+The root is an identity panel, following Flutter's `ChatInfoPage`: the header
+contains Close, while the avatar, name and identity/count establish the object.
+There is no separate Profile row. Contact sharing, groups in common, relationship
+commands and reporting are available directly in personal chats. Stranger,
+blocked, friend and bot states determine the available commands; existing user
+dialogs and message-avatar profile entry points retain their own navigation.
+
+Group participants, media/search, disappearing messages, group management,
+mute/name, circles and destructive commands form separate row groups. Group
+photo selection opens the existing crop dialog directly. Names and descriptions
+have separate editors and independent drafts; saving one does not discard the
+other. The participants header exposes Add participants and Group invite link
+in its trailing plus menu. Invitation links open a centered 480×600pt dialog,
+clamped to the window, with the group avatar/name, a selectable full link and
+three equal share/copy/reset commands. Only its body scrolls. Closing it preserves
+the participants search. Reset failures remain inside the same dialog.
+Non-admin members see a readable, static expiry value without a chevron, and
+exited groups expose neither management nor active-chat settings.
+
+Descriptions preview three source lines and at most 60 graphemes, with an
+explicit expand/collapse command when shortened. The body owns vertical scrolling;
+the 300pt inspector width, popup background and shared row controls apply to both
+group and personal previews.

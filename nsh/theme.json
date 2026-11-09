@@ -129,6 +129,8 @@
       "dialog-width-regular": "384px",
       "dialog-width-wide": "640px",
       "dialog-height-tall": "640px",
+      "group-invite-width": "480px",
+      "group-invite-height": "600px",
       "picker-width": "480px",
       "picker-height": "600px",
       "picker-form-height": "360px",

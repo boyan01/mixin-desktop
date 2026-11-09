@@ -1,12 +1,18 @@
 use nsh_base::SelectItem;
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::*;
 
 fn exited_group(state: State) -> bool {
-    state.row.with(|row| {
-        row.as_ref()
-            .is_some_and(|row| row.category == "GROUP" && row.status == 3)
-    })
+    state.group()
+        && (state
+            .row
+            .with(|row| row.as_ref().is_some_and(|row| row.status == 3))
+            || state.members.with(|members| {
+                !members
+                    .iter()
+                    .any(|member| member.user_id == state.own_id())
+            }))
 }
 
 fn muted(state: State) -> bool {
@@ -21,37 +27,92 @@ fn row_text(state: State, read: fn(&ConversationListData) -> String) -> String {
         .with(|row| row.as_ref().map(read).unwrap_or_default())
 }
 
-fn detail_url(state: State) -> String {
-    state.detail.with(|detail| {
-        detail
-            .as_ref()
-            .map(|detail| detail.code_url.clone())
-            .unwrap_or_default()
-    })
-}
-
 /// The `size_7` of a shared app's icon.
 const APP_ICON: f32 = 28.0;
 
 pub(super) fn screen(state: State) -> impl IntoElement {
+    let avatar = crate::avatar::Picker::new();
+    let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
     scroll().flex_1().min_h_0().child(
         parts::page_body()
+            .p_3()
+            .gap_3()
             .child(identity(state))
             .child(when(
                 move || state.group() && !exited_group(state),
-                move || group_rows(state),
+                move || {
+                    ui::card().child(page_row(
+                        move || tr("Group participants", "群组成员"),
+                        move || state.page.set(Page::Members),
+                    ))
+                },
+            ))
+            .child(when(
+                move || !state.group(),
+                move || {
+                    ui::card().child(row(
+                        move || tr("Share contact…", "分享联系人…"),
+                        move || links.open(user::contact_uri(&state.owner_id()), None),
+                    ))
+                },
+            ))
+            .child(chat_rows(state))
+            .child(when(
+                move || !exited_group(state),
+                move || ui::card().child(expiry_row(state)),
+            ))
+            .child(when(
+                move || state.group() && state.can_manage(),
+                move || group_rows(state, avatar),
+            ))
+            .child(when(
+                move || !exited_group(state),
+                move || {
+                    ui::card().child(mute_row(state)).child(when(
+                        move || {
+                            state.group() && state.can_manage()
+                                || !state.group() && state.owner_id() != state.own_id()
+                        },
+                        move || {
+                            row(
+                                move || tr("Edit name…", "编辑名称…"),
+                                move || state.page.set(Page::Edit),
+                            )
+                        },
+                    ))
+                },
             ))
             .child(when(
                 move || !state.group(),
                 move || {
                     ui::card().child(page_row(
-                        move || tr("Profile", "个人资料"),
-                        move || state.page.set(Page::Profile),
+                        move || tr("Groups in common", "共同群组"),
+                        move || state.page.set(Page::Groups),
                     ))
                 },
             ))
-            .child(chat_rows(state))
+            .child(when(
+                move || state.creator.with(Option::is_some),
+                move || {
+                    ui::card().child(row(
+                        move || tr("Created by", "开发者"),
+                        move || {
+                            if let Some(id) = state.creator.get_untracked() {
+                                links.open(format!("mixin://users/{id}"), None);
+                            }
+                        },
+                    ))
+                },
+            ))
+            .child(ui::card().child(page_row(
+                move || tr("Circles", "圈子"),
+                move || state.page.set(Page::Circles),
+            )))
             .child(history_rows(state))
+            .child(when(
+                move || !state.group() && state.owner_id() != state.own_id(),
+                move || user::sidebar_report(state),
+            ))
             .child(when(
                 move || state.group(),
                 move || {
@@ -76,8 +137,25 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                     .text_role(ui::TextRole::Caption)
                     .text_center()
                     .text_color(ui::fg_secondary)
+                    .py_2()
                 },
-            )),
+            ))
+            .child(avatar.dialog(true, move |data| {
+                if state.busy.get_untracked() || !state.can_manage() {
+                    return;
+                }
+                let client = state.client();
+                let id = state.id();
+                state.submit(
+                    async move {
+                        client
+                            .conversation()
+                            .update_conversation_avatar(id, data)
+                            .await
+                    },
+                    || {},
+                );
+            })),
     )
 }
 
@@ -91,11 +169,31 @@ fn identity(state: State) -> impl IntoElement {
                     .unwrap_or_default()
             })
         } else {
-            state.biography.get()
+            state.profile.with(|profile| {
+                profile
+                    .as_ref()
+                    .map(|profile| profile.biography.clone())
+                    .unwrap_or_default()
+            })
         }
     };
+    let expanded = signal(false);
+    let preview = computed(move || {
+        description()
+            .lines()
+            .take(3)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .graphemes(true)
+            .take(60)
+            .collect::<String>()
+    });
+    let truncated = move || preview.get().len() < description().trim_end().len();
     view()
-        .gap(ui::space_xs())
+        .px_4()
+        .pt_2()
+        .pb_5()
+        .gap_2()
         .items_center()
         .child(ui::conversation_avatar(
             move || state.row.get(),
@@ -116,40 +214,75 @@ fn identity(state: State) -> impl IntoElement {
                     }
                 })
             })
-            .text_role(ui::TextRole::Body)
+            .text_role(ui::TextRole::Caption)
             .text_color(ui::fg_secondary),
         )
+        .child(when(
+            move || !state.group(),
+            move || user::sidebar_add(state),
+        ))
         .child(
-            text(description)
-                .text_role(ui::TextRole::Body)
-                .text_center()
-                .style_when(move || description().is_empty(), |style| style.hidden()),
+            text(move || {
+                if expanded.get() {
+                    description()
+                } else if truncated() {
+                    format!("{}…", preview.get())
+                } else {
+                    description()
+                }
+            })
+            .text_role(ui::TextRole::Body)
+            .text_center()
+            .select_text()
+            .style_when(move || description().is_empty(), |style| style.hidden()),
         )
+        .child(when(truncated, move || {
+            ui::link(
+                move || {
+                    if expanded.get() {
+                        tr("Show less", "收起")
+                    } else {
+                        tr("Show more", "展开")
+                    }
+                },
+                move || expanded.set(!expanded.get()),
+            )
+            .self_center()
+        }))
 }
 
-fn group_rows(state: State) -> impl IntoElement {
+fn group_rows(state: State, avatar: crate::avatar::Picker) -> impl IntoElement {
     ui::card()
-        .child(page_row(
-            move || tr("Group participants", "群组成员"),
-            move || state.page.set(Page::Members),
-        ))
-        .child(when(
-            move || state.can_manage(),
+        .child(
+            row(
+                move || tr("Change group photo…", "更换群头像…"),
+                move || {
+                    if state.busy.get_untracked() || !state.can_manage() {
+                        return;
+                    }
+                    spawn(async move {
+                        state.failed.set(false);
+                        if avatar.pick().await.is_err() {
+                            state.failed.set(true);
+                        }
+                    });
+                },
+            )
+            .disabled(move || state.busy.get() || avatar.busy()),
+        )
+        .child(row(
             move || {
-                page_row(
-                    move || tr("Edit group…", "编辑群组…"),
-                    move || state.page.set(Page::Edit),
-                )
+                if state.detail.with(|detail| {
+                    detail
+                        .as_ref()
+                        .is_none_or(|detail| detail.announcement.is_empty())
+                }) {
+                    tr("Add group description…", "添加群公告…")
+                } else {
+                    tr("Edit group description…", "编辑群公告…")
+                }
             },
-        ))
-        .child(when(
-            move || state.can_manage(),
-            move || {
-                page_row(
-                    move || tr("Invite to group…", "邀请加入群组…"),
-                    move || state.page.set(Page::Invite),
-                )
-            },
+            move || state.page.set(Page::Description),
         ))
 }
 
@@ -168,29 +301,6 @@ fn chat_rows(state: State) -> impl IntoElement {
         .child(page_row(
             move || tr("Search messages", "搜索消息"),
             move || navigation.open_search_from_info(),
-        ))
-        .child(page_row(
-            move || tr("Circles", "圈子"),
-            move || state.page.set(Page::Circles),
-        ))
-        .child(when(
-            move || !exited_group(state),
-            move || view().child(expiry_row(state)).child(mute_row(state)),
-        ))
-        .child(when(
-            move || {
-                !state.group()
-                    && state.row.with(|row| {
-                        row.as_ref()
-                            .is_some_and(|row| row.owner_id != state.own_id())
-                    })
-            },
-            move || {
-                page_row(
-                    move || tr("Edit name…", "编辑名称…"),
-                    move || state.page.set(Page::EditName),
-                )
-            },
         ))
 }
 
@@ -227,12 +337,8 @@ fn shared_apps_row(state: State) -> impl IntoElement {
 }
 
 fn expiry_row(state: State) -> impl IntoElement {
-    row(
-        move || tr("Disappearing messages", "阅后即焚"),
-        move || state.page.set(Page::Expiry),
-    )
-    .disabled(move || state.group() && !state.can_manage())
-    .child(
+    let label = move || tr("Disappearing messages", "阅后即焚");
+    let value = move || {
         text(move || {
             let seconds = state
                 .detail
@@ -244,9 +350,22 @@ fn expiry_row(state: State) -> impl IntoElement {
             }
         })
         .text_role(ui::TextRole::Body)
-        .text_color(ui::fg_secondary),
-    )
-    .child(ui::chevron())
+        .text_color(ui::fg_secondary)
+    };
+    dynamic(move || {
+        let readonly = state.group() && !state.can_manage();
+        untracked(|| {
+            if readonly {
+                ui::static_row(label).child(value()).into_element()
+            } else {
+                row(label, move || state.page.set(Page::Expiry))
+                    .disabled(state.busy)
+                    .child(value())
+                    .child(ui::chevron())
+                    .into_element()
+            }
+        })
+    })
 }
 
 fn mute_row(state: State) -> impl IntoElement {
@@ -341,6 +460,10 @@ fn choose_mute(state: State) {
 
 fn history_rows(state: State) -> impl IntoElement {
     ui::card()
+        .child(when(
+            move || !state.group() && state.owner_id() != state.own_id(),
+            move || user::sidebar_relationship(state),
+        ))
         .child(
             row(
                 move || tr("Clear chat…", "清空聊天记录…"),
@@ -413,129 +536,143 @@ fn leave_group(state: State) {
     }
 }
 
-pub(super) fn edit(state: State) -> impl IntoElement {
-    let avatar = crate::avatar::Picker::new();
-    let (initial_name, initial_description) = state.detail.with_untracked(|detail| {
-        detail
-            .as_ref()
-            .map(|detail| (detail.name.clone(), detail.announcement.clone()))
-            .unwrap_or_default()
-    });
-    let (draft_name, draft_description) = state
-        .edit_draft
-        .with(|draft| draft.clone())
-        .unwrap_or_else(|| (initial_name.clone(), initial_description.clone()));
-    let name = signal(draft_name);
-    let description = signal(draft_description);
-    let initial_name = stored(initial_name);
-    let initial_description = stored(initial_description);
-    let keep_draft = move || {
-        state
-            .edit_draft
-            .replace(Some((name.get_untracked(), description.get_untracked())));
+pub(super) fn edit(state: State, description: bool) -> impl IntoElement {
+    let initial = if !description && !state.group() {
+        row_text(state, |row| row.name.clone())
+    } else {
+        state.detail.with_untracked(|detail| {
+            detail
+                .as_ref()
+                .map(|detail| {
+                    if description {
+                        detail.announcement.clone()
+                    } else {
+                        detail.name.clone()
+                    }
+                })
+                .unwrap_or_default()
+        })
     };
-    scroll().flex_1().min_h_0().child(
-        parts::page_body()
-            .child(
-                ui::action(
-                    move || tr("Change group photo…", "更改群头像…"),
-                    move || {
-                        spawn(async move {
-                            state.failed.set(false);
-                            if avatar.pick().await.is_err() {
-                                state.failed.set(true);
-                            }
-                        });
-                    },
-                )
-                .disabled(move || state.busy.get() || !state.can_manage() || avatar.busy()),
-            )
-            .child(avatar.surface(true, move |data| {
-                let client = state.client();
-                let id = state.id();
-                state.submit(
-                    async move {
-                        client
-                            .conversation()
-                            .update_conversation_avatar(id, data)
-                            .await
-                    },
-                    || {},
-                );
-            }))
-            .child(
-                ui::card()
-                    .p(ui::space_lg())
-                    .gap(ui::space_lg())
-                    .child(
-                        parts::labeled(move || tr("Name", "名称")).child(
-                            ui::field()
-                                .label(move || tr("Name", "名称"))
-                                .value(move || name.get())
-                                .max_length(40)
-                                .on_change(move |value: &str| {
-                                    name.set(value.into());
-                                    keep_draft();
-                                }),
-                        ),
-                    )
-                    .child(
-                        parts::labeled(move || tr("Description", "群公告")).child(
-                            ui::textarea()
-                                .label(move || tr("Description", "群公告"))
-                                .value(move || description.get())
-                                .max_length(512)
-                                .min_h_28()
-                                .on_change(move |value: &str| {
-                                    description.set(value.into());
-                                    keep_draft();
-                                }),
-                        ),
-                    ),
-            )
-            .child(
-                ui::primary()
-                    .self_end()
-                    .disabled(move || {
-                        state.busy.get()
-                            || !state.can_manage()
-                            || name.with(|value| value.trim().is_empty())
-                            || (initial_name
-                                .with(|initial| name.with(|value| value.trim() == initial.trim()))
-                                && initial_description
-                                    .with(|initial| description.with(|value| value == initial)))
-                    })
-                    .on_press(move || {
-                        if state.busy.get_untracked() || !state.can_manage() {
-                            return;
-                        }
-                        let client = state.client();
-                        let id = state.id();
-                        let name = name.get_untracked().trim().to_owned();
-                        let description = description.get_untracked();
-                        let name =
-                            initial_name.with(|initial| (initial.trim() != name).then_some(name));
-                        let description = initial_description
-                            .with(|initial| (*initial != description).then_some(description));
-                        if name.is_none() && description.is_none() {
-                            return;
-                        }
-                        state.submit(
-                            async move {
+    let initial = stored(initial);
+    let draft = state
+        .edit_draft
+        .with(|(name, announcement)| {
+            if description {
+                announcement.clone()
+            } else {
+                name.clone()
+            }
+        })
+        .unwrap_or_else(|| initial.get());
+    let value = signal(draft);
+    let keep = move |next: &str| {
+        value.set(next.into());
+        let (name, announcement) = state.edit_draft.get();
+        state.edit_draft.replace(if description {
+            (name, Some(next.into()))
+        } else {
+            (Some(next.into()), announcement)
+        });
+    };
+    let disabled = move || {
+        state.busy.get()
+            || if state.group() {
+                !state.can_manage()
+            } else {
+                state.profile.with(|profile| {
+                    profile
+                        .as_ref()
+                        .is_none_or(|profile| profile.is_deactivated)
+                })
+            }
+    };
+    let label = move || {
+        if description {
+            tr("Description", "群公告")
+        } else {
+            tr("Name", "名称")
+        }
+    };
+    let field = if description {
+        ui::textarea()
+            .label(label)
+            .value(move || value.get())
+            .max_length(512)
+            .min_h_40()
+            .readonly(disabled)
+            .auto_focus(true)
+            .on_change(keep)
+            .into_element()
+    } else {
+        ui::field()
+            .label(label)
+            .value(move || value.get())
+            .max_length(40)
+            .readonly(disabled)
+            .auto_focus(true)
+            .on_change(keep)
+            .into_element()
+    };
+    parts::page_body()
+        .gap_4()
+        .child(parts::labeled(label).child(field))
+        .child(
+            ui::primary()
+                .self_end()
+                .disabled(move || {
+                    disabled()
+                        || (!description && value.with(|v| v.trim().is_empty()))
+                        || initial.with(|i| {
+                            value.with(|v| {
+                                if description {
+                                    i == v
+                                } else {
+                                    i.trim() == v.trim()
+                                }
+                            })
+                        })
+                })
+                .on_press(move || {
+                    if disabled() {
+                        return;
+                    }
+                    let client = state.client();
+                    let id = state.id();
+                    let user = state.owner_id();
+                    let group = state.group();
+                    let value = if description {
+                        value.get_untracked()
+                    } else {
+                        value.get_untracked().trim().to_owned()
+                    };
+                    state.submit(
+                        async move {
+                            if group {
                                 client
                                     .conversation()
-                                    .edit_conversation(id, name, description)
+                                    .edit_conversation(
+                                        id,
+                                        (!description).then(|| value.clone()),
+                                        description.then_some(value),
+                                    )
                                     .await
-                            },
-                            move || {
-                                state.edit_draft.replace(None);
-                                state.page.set(Page::Info);
-                            },
-                        );
-                    })
-                    .child(text(move || tr("Save", "保存"))),
-            ),
-    )
+                            } else {
+                                client.user().rename_contact(user, value).await
+                            }
+                        },
+                        move || {
+                            let (name, announcement) = state.edit_draft.get();
+                            state.edit_draft.replace(if description {
+                                (name, None)
+                            } else {
+                                (None, announcement)
+                            });
+                            state.page.set(Page::Info);
+                        },
+                    );
+                })
+                .child(text(move || tr("Save", "保存"))),
+        )
 }
 
 const EXPIRY_UNITS: [(i64, i64, &str, &str); 5] = [
@@ -703,61 +840,6 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                                 .child(text(move || tr("Set", "设置"))),
                         ),
                 ),
-            ),
-    )
-}
-
-pub(super) fn invite(state: State) -> impl IntoElement {
-    let qr = computed(move || crate::qr::source(&detail_url(state), 256));
-    scroll().flex_1().min_h_0().child(
-        parts::page_body()
-            .items_center()
-            .child(
-                text(move || {
-                    tr(
-                        "Anyone with this link can join the group.",
-                        "获得此链接的任何人都可以加入群组。",
-                    )
-                })
-                .text_role(ui::TextRole::Body)
-                .text_center(),
-            )
-            .child(dynamic(move || match qr.get() {
-                Some(source) => image(source)
-                    .size_40()
-                    .label("Group invite QR code")
-                    .into_element(),
-                None => text(move || tr("Invitation is unavailable.", "邀请链接暂不可用。"))
-                    .text_role(ui::TextRole::Body)
-                    .into_element(),
-            }))
-            .child(text(move || detail_url(state)).text_role(ui::TextRole::Body).select_text())
-            .child(
-                ui::action(
-                    move || tr("Copy link", "复制链接"),
-                    move || set_clipboard(untracked(|| detail_url(state))),
-                )
-                .disabled(move || detail_url(state).is_empty()),
-            )
-            .child(
-                ui::action(
-                    move || tr("Reset link…", "重置链接…"),
-                    move || {
-                        let client = state.client();
-                        let id = state.id();
-                        state.confirm_then(
-                            Prompt::new(
-                                tr("Reset invitation link?", "重置邀请链接？"),
-                                tr("The previous link will stop working.", "此前的邀请链接将失效。"),
-                                tr("Reset", "重置"),
-                            ),
-                            move || async move {
-                                client.conversation().rotate_group_invite(id).await
-                            },
-                        );
-                    },
-                )
-                .disabled(move || state.busy.get() || !state.can_manage()),
             ),
     )
 }

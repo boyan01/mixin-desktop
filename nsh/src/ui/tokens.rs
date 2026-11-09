@@ -115,6 +115,9 @@ lengths! {
     dialog_width_wide = "dialog-width-wide";
     /// A dialog that holds a page or a long list.
     dialog_height_tall = "dialog-height-tall";
+    /// Flutter's centered group invitation dialog.
+    group_invite_width = "group-invite-width";
+    group_invite_height = "group-invite-height";
     picker_width = "picker-width";
     picker_height = "picker-height";
     picker_form_height = "picker-form-height";

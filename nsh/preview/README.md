@@ -5,10 +5,10 @@ related primary commitments, pagination, disabled actions, forms and retry actio
 Ghost commands, pill actions, bot-defined custom button colors and native OS alerts
 use different treatments.
 
-There are 84 native scenes, including the original 21 scenes. Each scene represents
+There are 85 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 212 captures, grouped by scene and state. `--scenes`
+The full catalog contains 224 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -237,3 +237,43 @@ The local gallery is `output/snapshot-detail-review/index.html`. It includes the
 before/after comparisons, each transaction type, content states and close-ups of
 the amount hierarchy, embedded text-artwork background and image-letterbox fixes
 found while reviewing the new implementation.
+
+## Chat information sidebar review
+
+`conversation-info` and `conversation-info-contact` render the production sidebar
+at its 300pt width. The group scene covers ordinary members, exited groups,
+name/description editors and long announcements. The contact scene covers
+strangers, blocked users, bots, name editing and long biographies. The action
+toolbar now fits narrow windows, and the fixtures navigate through the real
+page state rather than changing only their header.
+
+The local gallery is `output/chat-info-review/index.html`. It includes the old
+preview versus the new layout, dark/light states, top/bottom captures, draft
+captures and the group-members search-height fix. The old preview used the chat
+background and omitted personal biographies; the new preview uses the inspector's
+popup background and the existing profile DTO, matching the live container.
+
+An account-free native interaction check verifies independent name/description
+drafts across Back navigation.
+No live relationship changes, message sharing or avatar uploads are exercised.
+Windows and Linux remain unverified.
+
+## Group participants and invitation review
+
+`group-members` renders the production participants header and its trailing plus
+menu. The menu opens the existing contact picker or the group invitation dialog.
+`group-invite` renders the production invitation card inside the preview frame,
+so the toolbar can still apply Error/Reset. Its error state stays in the card.
+The live participants page wraps that same card in the standard modal.
+
+The local gallery is `output/group-invite-review/index.html`. It contains the
+before/after captures, the open menu, native dialog presentation, narrow/light
+variants and an inline reset failure. The narrow capture also documents the
+unnecessary action-label ellipses found and removed during this review. The
+menu-edge close-up records the initial popup touching the window edge; explicit
+end alignment and a safe-area margin correct it.
+
+An account-free native check opens and dismisses the menu, opens the invitation,
+and verifies that both Close and Escape preserve the participants search query.
+It does not send a message, change the clipboard, reset a live invite or add a
+member. Windows and Linux remain unverified.

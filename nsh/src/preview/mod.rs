@@ -380,8 +380,13 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "conversation-info",
-        actions: button_pages::ERROR_ACTIONS,
+        actions: button_pages::INFO_ACTIONS,
         mount: button_pages::info,
+    },
+    Scene {
+        name: "conversation-info-contact",
+        actions: button_pages::CONTACT_INFO_ACTIONS,
+        mount: button_pages::contact_info,
     },
     Scene {
         name: "contact-profile",
@@ -574,6 +579,8 @@ fn toolbar(
                     .items_center()
                     .gap(ui::space_sm())
                     .w(px(290.0))
+                    .max_w(relative(0.6))
+                    .min_w_0()
                     .child(
                         view().flex_1().min_w_0().child(
                             ui::select()

@@ -13,6 +13,9 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let query = signal(String::new());
     let adding = signal(false);
+    let inviting = signal(false);
+    let invite_failed = signal(false);
+    let invite_presence = Presence::modal(move || inviting.get());
     let profile = signal_with(None::<ConversationParticipantItem>, SignalEquals::Never);
     let adding_presence = Presence::modal(move || adding.get());
     let profile_presence = Presence::modal(move || profile.with(Option::is_some));
@@ -35,28 +38,64 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         .flex_1()
         .min_h_0()
         .child(
-            view()
-                .p(ui::space_lg())
-                .gap(ui::space_sm())
-                .child(
-                    ui::search_pill().flex_none().child(
-                        ui::search_input()
-                            .label(move || tr("Search participants", "搜索群成员"))
-                            .placeholder(move || tr("Search", "搜索").to_owned())
-                            .value(move || query.get())
-                            .on_change(move |text: &str| query.set(text.into())),
-                    ),
-                )
-                .child(when(
-                    move || state.can_manage(),
-                    move || {
-                        ui::action(
-                            move || tr("Add participants…", "添加群成员…"),
-                            move || adding.set(true),
-                        )
-                        .disabled(state.busy)
-                    },
-                )),
+            parts::page_header(
+                move || tr("Group participants", "群组成员"),
+                Some(parts::back_button(move || state.page.set(Page::Info))),
+                None,
+            )
+            .relative()
+            .child(
+                view()
+                    .absolute()
+                    .right(ui::space_lg())
+                    .top_0()
+                    .bottom_0()
+                    .justify_center()
+                    .child(when(
+                        move || state.can_manage(),
+                        move || {
+                            ui::menu()
+                                .align(Align::End)
+                                .margin(ui::space_lg())
+                                .trigger(
+                                    ui::round_button()
+                                        .size_8()
+                                        .disabled(state.busy)
+                                        .accessibility_label(move || {
+                                            Some(tr("Participant actions", "群成员操作").into())
+                                        })
+                                        .child(ui::icon(ui::Icon::Add)),
+                                )
+                                .child(
+                                    ui::menu_row_icon(Some(ui::MenuIcon::SearchUser), move || {
+                                        tr("Add participants…", "添加成员…")
+                                    })
+                                    .on_select(move || adding.set(true)),
+                                )
+                                .child(
+                                    ui::menu_row_icon(Some(ui::MenuIcon::Link), move || {
+                                        tr("Group invite link…", "群邀请链接…")
+                                    })
+                                    .on_select(move || {
+                                        invite_failed.set(false);
+                                        inviting.set(true);
+                                    }),
+                                )
+                        },
+                    )),
+            ),
+        )
+        .child(
+            view().p(ui::space_lg()).gap(ui::space_sm()).child(
+                // The shared pill's zero flex basis would collapse its height in this column.
+                ui::search_pill().flex_auto().flex_none().child(
+                    ui::search_input()
+                        .label(move || tr("Search participants", "搜索群成员"))
+                        .placeholder(move || tr("Search", "搜索").to_owned())
+                        .value(move || query.get())
+                        .on_change(move |text: &str| query.set(text.into())),
+                ),
+            ),
         )
         .child(
             virtual_list(
@@ -92,6 +131,17 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         .child(when(
             move || filtered.with(Vec::is_empty) && !state.loading.get(),
             || ui::placeholder(move || tr("No participants found", "未找到群成员")),
+        ))
+        .child(when(
+            move || invite_presence.mounted(),
+            move || {
+                invite::dialog(
+                    state,
+                    invite_presence,
+                    move || inviting.set(false),
+                    invite_failed,
+                )
+            },
         ))
         .child(when(
             move || adding_presence.mounted(),

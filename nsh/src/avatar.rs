@@ -97,16 +97,25 @@ impl Picker {
                 .text_role(ui::TextRole::Caption)
                 .text_color(ui::fg_secondary),
             )
-            .child(when(
-                move || self.presence.mounted(),
-                move || {
-                    let source = self
-                        .source
-                        .with_untracked(|source| source.clone())
-                        .expect("Open avatar picker has a prepared image");
-                    crop::screen(self, source, group, save)
-                },
-            ))
+            .child(self.dialog(group, save))
+    }
+
+    /// The crop dialog without the helper copy used by upload forms.
+    pub(crate) fn dialog(
+        self,
+        group: bool,
+        save: impl Fn(String) + Copy + 'static,
+    ) -> impl IntoElement {
+        when(
+            move || self.presence.mounted(),
+            move || {
+                let source = self
+                    .source
+                    .with_untracked(|source| source.clone())
+                    .expect("Open avatar picker has a prepared image");
+                crop::screen(self, source, group, save)
+            },
+        )
     }
 }
 

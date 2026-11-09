@@ -324,17 +324,7 @@ fn run(page: Page, action: Action, name: String, done: impl FnOnce() + 'static) 
     let client = page.client();
     let user_id = page.id.get_untracked();
     let target = user_id.clone();
-    let command = runtime::commit(async move {
-        let access = client.user();
-        match action {
-            Action::Add => access.add_contact(user_id, name).await,
-            Action::Rename => access.rename_contact(user_id, name).await,
-            Action::Remove => access.remove_contact(user_id).await,
-            Action::Block => access.block_user(user_id).await,
-            Action::Unblock => access.unblock_user(user_id).await,
-            Action::Report => access.report_user(user_id).await,
-        }
-    });
+    let command = runtime::commit(change(client, user_id, action, name));
     // The name form owns this press, but ends before the write when its page changes.
     page.owner.run(|| {
         spawn(async move {
@@ -350,6 +340,138 @@ fn run(page: Page, action: Action, name: String, done: impl FnOnce() + 'static) 
             done();
         })
     });
+}
+
+async fn change(
+    client: Arc<AccountClient>,
+    user_id: String,
+    action: Action,
+    name: String,
+) -> ClientResult<()> {
+    let access = client.user();
+    match action {
+        Action::Add => access.add_contact(user_id, name).await,
+        Action::Rename => access.rename_contact(user_id, name).await,
+        Action::Remove => access.remove_contact(user_id).await,
+        Action::Block => access.block_user(user_id).await,
+        Action::Unblock => access.unblock_user(user_id).await,
+        Action::Report => access.report_user(user_id).await,
+    }
+}
+
+fn sidebar_apply(state: State, action: Action) {
+    let Some(profile) = state.profile.get_untracked() else {
+        return;
+    };
+    if state.busy.get_untracked() || profile.user_id == state.own_id() {
+        return;
+    }
+    state.submit(
+        change(state.client(), profile.user_id, action, profile.full_name),
+        || {},
+    );
+}
+
+fn sidebar_confirm(state: State, action: Action, prompt: Prompt) {
+    let Some(profile) = state.profile.get_untracked() else {
+        return;
+    };
+    if state.busy.get_untracked() || profile.user_id == state.own_id() {
+        return;
+    }
+    let client = state.client();
+    state.confirm_then(prompt, move || {
+        change(client, profile.user_id, action, profile.full_name)
+    });
+}
+
+pub(super) fn sidebar_add(state: State) -> impl IntoElement {
+    when(
+        move || {
+            state.profile.with(|profile| {
+                profile.as_ref().is_some_and(|profile| {
+                    profile.relationship == "STRANGER"
+                        && !profile.is_deactivated
+                        && profile.identity_number != ANONYMOUS_ID
+                })
+            })
+        },
+        move || {
+            ui::pill(
+                move || {
+                    if state.profile.with(|p| p.as_ref().is_some_and(|p| p.is_bot)) {
+                        tr("+ Add Bot", "+ 添加机器人")
+                    } else {
+                        tr("+ Add Contact", "+ 添加联系人")
+                    }
+                },
+                move || sidebar_apply(state, Action::Add),
+            )
+            .disabled(state.busy)
+            .mt_1()
+        },
+    )
+}
+
+pub(super) fn sidebar_relationship(state: State) -> impl IntoElement {
+    let relationship = move || {
+        state.profile.with(|p| {
+            p.as_ref()
+                .map(|p| p.relationship.clone())
+                .unwrap_or_default()
+        })
+    };
+    view()
+        .child(when(
+            move || relationship() == "BLOCKING",
+            move || {
+                row(
+                    move || tr("Unblock…", "取消屏蔽…"),
+                    move || sidebar_confirm(state, Action::Unblock, unblock_prompt()),
+                )
+                .disabled(state.busy)
+                .text_color(ui::danger)
+            },
+        ))
+        .child(when(
+            move || relationship() == "FRIEND",
+            move || {
+                row(
+                    move || {
+                        if state.profile.with(|p| p.as_ref().is_some_and(|p| p.is_bot)) {
+                            tr("Remove bot…", "移除机器人…")
+                        } else {
+                            tr("Remove contact…", "移除联系人…")
+                        }
+                    },
+                    move || sidebar_confirm(state, Action::Remove, remove_prompt()),
+                )
+                .disabled(state.busy)
+                .text_color(ui::danger)
+            },
+        ))
+        .child(when(
+            move || relationship() == "STRANGER",
+            move || {
+                row(
+                    move || tr("Block…", "屏蔽…"),
+                    move || sidebar_confirm(state, Action::Block, block_prompt()),
+                )
+                .disabled(state.busy)
+                .text_color(ui::danger)
+            },
+        ))
+}
+
+pub(super) fn sidebar_report(state: State) -> impl IntoElement {
+    ui::card().child(
+        row(
+            move || tr("Report and block…", "举报并屏蔽…"),
+            move || sidebar_confirm(state, Action::Report, report_prompt()),
+        )
+        .disabled(move || state.busy.get() || state.profile.with(Option::is_none))
+        .text_color(ui::danger),
+    )
 }
 
 /// The whole profile, in the window's right-hand pane.
@@ -700,7 +822,7 @@ fn primary_rows(page: Page) -> impl IntoElement {
         ))
 }
 
-fn contact_uri(user_id: &str) -> String {
+pub(super) fn contact_uri(user_id: &str) -> String {
     use base64::Engine as _;
     let data = base64::engine::general_purpose::STANDARD
         .encode(serde_json::json!({"user_id": user_id}).to_string());
@@ -816,7 +938,11 @@ fn report_prompt() -> Prompt {
     )
 }
 
-fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) -> impl IntoElement {
+pub(super) fn groups(
+    account: Arc<AccountClient>,
+    user_id: String,
+    failed: Signal<bool>,
+) -> impl IntoElement {
     let values = signal_with(Vec::<GroupConversationItem>::new(), SignalEquals::Never);
     let loading = signal(true);
     let revision = signal(0_u64);
@@ -967,7 +1093,7 @@ fn dialog_view(
         ))
 }
 
-fn groups_view(
+pub(super) fn groups_view(
     values: Signal<Vec<GroupConversationItem>>,
     loading: Signal<bool>,
     query_failed: Signal<bool>,
@@ -1121,13 +1247,17 @@ pub(crate) fn preview_groups(values: Vec<GroupConversationItem>, failed: Signal<
         ))
 }
 #[cfg(debug_assertions)]
-pub(crate) fn preview_apps(values: Vec<SharedAppItem>, failed: Signal<bool>) -> View {
+pub(crate) fn preview_apps(
+    values: Vec<SharedAppItem>,
+    failed: Signal<bool>,
+    back: impl Fn() + 'static,
+) -> View {
     view()
         .flex_1()
         .min_h_0()
         .child(parts::page_header(
             move || Destination::Apps.title(),
-            Some(parts::back_button(|| {})),
+            Some(parts::back_button(back)),
             None,
         ))
         .child(apps_view(
