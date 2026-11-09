@@ -53,6 +53,22 @@ is the 500 weight of a control label or section heading.
 
 ## Surfaces and foreground
 
+Snapshot details use the regular 384pt dialog surface in both chat and link
+navigation. One fixed header owns the title and close icon; the body owns vertical
+scrolling, with 24pt content insets. Transfer details start with an asset/chain
+icon, a 32pt amount and a body-sized symbol on the same baseline. Incoming and
+outgoing amounts retain their sign and precision; pending amounts stay neutral.
+Available current and historical estimates are explicitly denominated in USD.
+Transaction fields follow the snapshot type, with full, selectable identifiers,
+quiet copy buttons and a local timestamp including seconds.
+
+Inscription details lead with square artwork, then the full hash, sequence and
+collection identity. Image content is contained without cropping; text content
+uses Flutter's artwork background and orange ink, with a bounded text preview.
+Unsupported content keeps the inscription placeholder and an explicit open-content
+command. Collection icons and artwork have local fallbacks. Text load failures
+remain inside the artwork and external-open failures stay in the detail body.
+
 Surfaces are ordered by stacking, not brightness. As in Flutter, a dark detail pane
 is darker than the list column beside it.
 

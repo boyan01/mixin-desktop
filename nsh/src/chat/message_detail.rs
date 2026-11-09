@@ -360,6 +360,11 @@ fn detail_card(
         shown.with(|detail| matches!(detail, Some(Detail::Image { .. } | Detail::Video { .. })))
     };
     let sticker = move || shown.with(|detail| matches!(detail, Some(Detail::Sticker(_))));
+    let snapshot = move || {
+        shown.with(
+            |detail| matches!(detail, Some(Detail::Message(row)) if row.snapshot_id.is_some()),
+        )
+    };
     let transcript = move || {
         shown.with(|detail| match detail {
             Some(Detail::TranscriptSummary { .. }) => true,
@@ -375,6 +380,9 @@ fn detail_card(
         .min_h_0()
         .gap_3()
         .style_when(transcript, super::message_transcript::surface)
+        .style_when(snapshot, |style| {
+            crate::snapshot::surface(style).flex_auto().flex_grow(0.0)
+        })
         .style_when(qr, |style| {
             style
                 .flex_auto()
@@ -419,7 +427,7 @@ fn detail_card(
                 .gap_2()
                 .style_when(qr, |style| style.items_center())
                 .style_when(
-                    move || user_profile() || photo() || sticker() || transcript(),
+                    move || user_profile() || photo() || sticker() || transcript() || snapshot(),
                     |style| style.hidden(),
                 )
                 .child(when(qr, move || {

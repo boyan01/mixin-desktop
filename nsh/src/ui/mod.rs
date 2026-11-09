@@ -43,7 +43,7 @@ pub(crate) use form::{
     NO_LABEL, checkbox, field, search_input, search_pill, select, select_trigger, slider,
     slider_compact, slider_media, slider_over_scale, slider_over_wave, tab, textarea,
 };
-pub(crate) use icon::{Icon, icon, logo, wallpaper};
+pub(crate) use icon::{Icon, icon, inscription_background, logo, wallpaper};
 pub(crate) use markdown::{markdown, markdown_reader};
 pub(crate) use menu_icon::MenuIcon;
 pub(crate) use overlay::{

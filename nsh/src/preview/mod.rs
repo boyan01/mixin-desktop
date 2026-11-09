@@ -34,6 +34,11 @@ struct Scene {
 
 const SCENES: &[Scene] = &[
     Scene {
+        name: "snapshot-transfer",
+        actions: button_pages::TRANSFER_DETAIL_ACTIONS,
+        mount: button_pages::snapshot_transfer,
+    },
+    Scene {
         name: "snapshot-inscription",
         actions: button_pages::SNAPSHOT_ACTIONS,
         mount: button_pages::snapshot_inscription,

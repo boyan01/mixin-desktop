@@ -201,3 +201,14 @@ pub(crate) fn wallpaper() -> Image {
     });
     image(SOURCE.clone())
 }
+
+pub(crate) fn inscription_background() -> Image {
+    static SOURCE: std::sync::LazyLock<SharedString> = std::sync::LazyLock::new(|| {
+        format!(
+            "data:image/png;base64,{}",
+            STANDARD.encode(include_bytes!("../../assets/inscription/text_bg.png"))
+        )
+        .into()
+    });
+    image(SOURCE.clone())
+}

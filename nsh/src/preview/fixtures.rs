@@ -859,6 +859,26 @@ pub(super) fn photo_attachment() -> mixin_desktop_api::PreparedAttachment {
     photo
 }
 
+pub(super) fn transfer_snapshot() -> mixin_desktop_api::SnapshotDetailItem {
+    let mut value = snapshot();
+    value.amount = "0.0393".into();
+    value.symbol = "CNB".into();
+    value.asset_name = "Chui Niu Bi".into();
+    value.asset_icon_url =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg").into();
+    value.chain_icon_url = value.asset_icon_url.clone();
+    value.transaction_hash =
+        Some("a6c794719270034208fd4631540bd4be197ceaf5b5e369a1b944fb12d516d6cd".into());
+    value.memo = Some("1360fac4-734d-47ee-b4a4-025d7d234eaf#7f228a0f91b375f0365877eb66673611d4d898bbf1b81979a05b534445e992de#grabbed".into());
+    value.price_usd = Some("0.00001".into());
+    value.inscription_hash = None;
+    value.inscription_sequence = None;
+    value.inscription_content_type = None;
+    value.inscription_content_url = None;
+    value.inscription_name = None;
+    value
+}
+
 pub(super) fn snapshot() -> mixin_desktop_api::SnapshotDetailItem {
     mixin_desktop_api::SnapshotDetailItem {
         snapshot_id: "ba0ce05a-607f-498e-bfe5-fbbf9583ac35".into(),

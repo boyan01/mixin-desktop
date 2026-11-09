@@ -241,6 +241,7 @@ fn unsupported(raw: String) -> impl IntoElement {
 pub(super) fn panel_card(router: LinkNavigation, panel: Panel) -> View {
     let send = matches!(&panel, Panel::Send(_));
     let profile = matches!(&panel, Panel::Profile(_));
+    let snapshot = matches!(&panel, Panel::Snapshot(_));
     let compact = send
         || profile
         || matches!(
@@ -271,9 +272,13 @@ pub(super) fn panel_card(router: LinkNavigation, panel: Panel) -> View {
         Panel::Profile(id) => {
             crate::conversation::profile(router.client(), id, move || router.close()).into_element()
         }
-        Panel::Snapshot(reference) => {
-            crate::snapshot::screen(router.client(), reference).into_element()
-        }
+        Panel::Snapshot(reference) => crate::snapshot::screen(
+            router.client(),
+            reference,
+            move || router.close(),
+            view().hidden(),
+        )
+        .into_element(),
         Panel::Send(request) => super::send::screen(router, request).into_element(),
         Panel::Code(code, value) => code_panel(router, code, *value).into_element(),
         Panel::Unsupported(raw) => unsupported(raw).into_element(),
@@ -282,7 +287,9 @@ pub(super) fn panel_card(router: LinkNavigation, panel: Panel) -> View {
     if compact {
         body = body.flex_auto().flex_grow(0.0);
     }
-    let mut card = if profile {
+    let mut card = if snapshot {
+        crate::snapshot::surface(view())
+    } else if profile {
         ui::dialog_card(ui::DialogWidth::Compact)
             .p_0()
             .gap_0()
@@ -296,7 +303,7 @@ pub(super) fn panel_card(router: LinkNavigation, panel: Panel) -> View {
     if compact {
         card = card.h(auto()).min_h_0();
     }
-    if !send && !profile {
+    if !send && !profile && !snapshot {
         card = card.child(parts::dialog_actions().child(ui::action(
             move || tr("Close", "关闭"),
             move || router.close(),

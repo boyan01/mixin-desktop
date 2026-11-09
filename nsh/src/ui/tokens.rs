@@ -208,6 +208,8 @@ lengths! {
     inscription_height = "inscription-height";
     /// The amount and the asset of a transfer card.
     amount_text_size = "text-amount-size";
+    /// The focal amount in a transaction detail dialog.
+    detail_amount_size = "text-detail-amount-size";
     asset_text_size = "text-asset-size";
 }
 
@@ -289,6 +291,8 @@ colors! {
     /// Destructive actions, failures and unread alerts.
     danger = "destructive";
     success = "success";
+    /// Text inscriptions retain Flutter's artwork color in either appearance.
+    inscription_ink = "inscription-ink";
 
     /// A boundary inside a pane.
     hairline = "hairline";

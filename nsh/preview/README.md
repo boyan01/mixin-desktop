@@ -5,10 +5,10 @@ related primary commitments, pagination, disabled actions, forms and retry actio
 Ghost commands, pill actions, bot-defined custom button colors and native OS alerts
 use different treatments.
 
-There are 83 native scenes, including the original 21 scenes. Each scene represents
+There are 84 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 203 captures, grouped by scene and state. `--scenes`
+The full catalog contains 212 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -219,3 +219,21 @@ close-ups, light/narrow, long, image, attachment and cancellation states. The fi
 caption inset follow-up is in `output/caption-inset-review/index.html`: captions
 align with the attachment strip while ordinary input keeps its tool spacing.
 Real account sends, history jumps and recording remain unverified.
+
+## Snapshot detail review
+
+`snapshot-transfer` renders the production detail dialog with a received transfer
+and a long memo. `Sent`, `Pending`, `Deposit`, `Withdrawal`, `Legacy` and `Error`
+cover transaction direction, confirmations, chain fields and legacy balances.
+`snapshot-inscription` uses the same dialog surface; `Image`, `Text`, `Long text`
+and `Content error` cover content presentation and recovery within the artwork.
+The default document fixture keeps an explicit open-content action.
+
+Capture both scenes in dark and light appearances and at narrow widths. The
+fixtures have no account; live snapshot loading, copying and opening external
+content are not exercised by the captures. Windows and Linux remain unverified.
+
+The local gallery is `output/snapshot-detail-review/index.html`. It includes the
+before/after comparisons, each transaction type, content states and close-ups of
+the amount hierarchy, embedded text-artwork background and image-letterbox fixes
+found while reviewing the new implementation.

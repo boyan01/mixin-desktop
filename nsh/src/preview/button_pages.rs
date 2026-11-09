@@ -413,14 +413,43 @@ pub(super) fn profile_settings(actions: Actions) -> View {
 
 pub(super) fn snapshot_inscription(actions: Actions) -> View {
     prepare();
-    host(crate::snapshot::preview(
-        fixtures::snapshot(),
-        mode(actions, SNAPSHOT_ACTIONS),
-    ))
+    dialog_host(
+        crate::snapshot::surface(view()).child(crate::snapshot::preview(
+            fixtures::snapshot(),
+            mode(actions, SNAPSHOT_ACTIONS),
+        )),
+    )
 }
 
+pub(super) fn snapshot_transfer(actions: Actions) -> View {
+    prepare();
+    dialog_host(
+        crate::snapshot::surface(view()).child(crate::snapshot::preview(
+            fixtures::transfer_snapshot(),
+            mode(actions, TRANSFER_DETAIL_ACTIONS),
+        )),
+    )
+}
+
+pub(super) const TRANSFER_DETAIL_ACTIONS: &[&str] = &[
+    "Sent",
+    "Pending",
+    "Deposit",
+    "Withdrawal",
+    "Legacy",
+    "Error",
+    "Reset",
+];
+
 pub(super) const TRANSFER_ACTIONS: &[&str] = &["Complete", "Error", "Reset"];
-pub(super) const SNAPSHOT_ACTIONS: &[&str] = &["Text", "Error", "Content error", "Reset"];
+pub(super) const SNAPSHOT_ACTIONS: &[&str] = &[
+    "Image",
+    "Text",
+    "Long text",
+    "Error",
+    "Content error",
+    "Reset",
+];
 pub(super) const SEARCH_ACTIONS: &[&str] = &["Senders", "Error", "Sender error", "Reset"];
 pub(super) const CHAT_ACTIONS: &[&str] = &[
     "Draft error",
