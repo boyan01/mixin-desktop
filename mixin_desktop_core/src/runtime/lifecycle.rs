@@ -128,6 +128,9 @@ pub(super) async fn monitor_session(
             return;
         }
         if completion.borrow().is_some() {
+            // The account services can stop on their own; without this, event
+            // streams and hosts would wait on a runtime that will never resume.
+            shutdown.send_replace(true);
             return;
         }
         let health = match code {

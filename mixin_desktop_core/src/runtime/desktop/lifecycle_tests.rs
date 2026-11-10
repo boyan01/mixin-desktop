@@ -56,6 +56,11 @@ struct Fixture {
 
 impl Fixture {
     async fn new() -> Self {
+        Self::build(None).await
+    }
+
+    /// `runner_stop`, when given, ends the runner without any shutdown request.
+    async fn build(runner_stop: Option<watch::Receiver<bool>>) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let account_directory = directory.path().join("account");
         std::fs::create_dir(&account_directory).unwrap();
@@ -177,7 +182,8 @@ impl Fixture {
             changes.clone(),
         );
         let (shutdown, receiver) = watch::channel(false);
-        let runner = runner::Runner::observing_shutdown(receiver.clone());
+        let runner =
+            runner::Runner::observing_shutdown(runner_stop.unwrap_or_else(|| receiver.clone()));
         let state = Arc::new(AccountState {
             account_id: USER.into(),
             account_data_dir: account_directory,
@@ -549,6 +555,33 @@ async fn failed_auth_persistence_restores_screen_credentials_or_keeps_content_co
         assert!(!service.state().enabled);
         fixture.close().await;
     }
+}
+
+#[tokio::test]
+async fn runner_exit_without_shutdown_request_closes_open_event_streams() {
+    let (stop_runner, runner_stop) = watch::channel(false);
+    let fixture = Fixture::build(Some(runner_stop)).await;
+    let (endpoint, token) = fixture.start_mcp().await;
+    let response = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+        .get(endpoint)
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+
+    stop_runner.send_replace(true);
+
+    let body = tokio::time::timeout(Duration::from_secs(3), response.text())
+        .await
+        .expect("event stream must end when the account services stop")
+        .unwrap();
+    assert!(body.contains("event: ready"), "{body:?}");
+    assert!(*fixture.runtime.subscribe_shutdown().borrow());
+    fixture.close().await;
 }
 
 #[tokio::test]
