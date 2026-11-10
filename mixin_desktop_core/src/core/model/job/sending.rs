@@ -22,6 +22,7 @@ use crate::core::message::sender::{MessageResult, MessageSender};
 use crate::core::model::{AttachmentExtra, ConversationService};
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::Message;
+use crate::db::mixin::participant_session::ParticipantSession;
 use crate::db::path::account_data_directory;
 use crate::db::MixinDatabase;
 
@@ -559,6 +560,27 @@ impl SendingJobRunner {
             .await
     }
 
+    /// A message addressed to one bot in a group encrypts to that bot's key.
+    async fn encrypted_recipient_session(
+        &self,
+        message: &crate::db::mixin::message::Message,
+        payload: &SendingPayload,
+    ) -> Result<Option<ParticipantSession>> {
+        let sessions = &self.database.participant_session_dao;
+        Ok(match &payload.recipient_id {
+            Some(user_id) => {
+                sessions
+                    .participant_session_key_of_user(&message.conversation_id, user_id)
+                    .await?
+            }
+            None => {
+                sessions
+                    .participant_session_key_without_self(&message.conversation_id, &self.user_id)
+                    .await?
+            }
+        })
+    }
+
     async fn send_encrypted_message(
         &self,
         message: &crate::db::mixin::message::Message,
@@ -567,11 +589,7 @@ impl SendingJobRunner {
         mentions: Option<&[String]>,
         expire_in: i32,
     ) -> Result<Option<MessageResult>> {
-        let mut remote = self
-            .database
-            .participant_session_dao
-            .participant_session_key_without_self(&message.conversation_id, &self.user_id)
-            .await?;
+        let mut remote = self.encrypted_recipient_session(message, payload).await?;
         if remote.is_none() {
             ConversationService::new(
                 self.database.clone(),
@@ -580,11 +598,7 @@ impl SendingJobRunner {
             )
             .refresh_conversation(&message.conversation_id)
             .await?;
-            remote = self
-                .database
-                .participant_session_dao
-                .participant_session_key_without_self(&message.conversation_id, &self.user_id)
-                .await?;
+            remote = self.encrypted_recipient_session(message, payload).await?;
         }
         let Some(remote) = remote else {
             return Ok(None);
@@ -640,6 +654,7 @@ impl SendingJobRunner {
                 conversation_checksum: Some(
                     self.sender.get_check_sum(&message.conversation_id).await?,
                 ),
+                recipient_id: payload.recipient_id.clone(),
                 message_id: Some(message.message_id.clone()),
                 category: Some(message.category.clone()),
                 data: Some(Base64::encode_string(&encrypted)),

@@ -642,8 +642,12 @@ impl MessageAccess {
             .await?
             .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
         let mut category = self.text_category(conversation.owner_id.as_deref()).await?;
+        let mut recipient_id = None;
         if post {
             category = category.replace("_TEXT", "_POST");
+        } else if let Some(bot) = bot_recipient(&self.database, conversation_id, content).await? {
+            category = bot.category.to_string();
+            recipient_id = Some(bot.app_id);
         }
         let message_id = Uuid::new_v4().to_string();
         let quote_content = match quote_message_id {
@@ -674,7 +678,7 @@ impl MessageAccess {
         let job = Job::create_sending_job(
             &message_id,
             conversation_id,
-            None,
+            recipient_id.as_deref(),
             None,
             false,
             silent,
@@ -1162,6 +1166,46 @@ fn is_shareable_app_card_action(action: &str) -> bool {
             && uri.path().trim_matches('/').starts_with("send"))
 }
 
+struct BotRecipient {
+    app_id: String,
+    category: &'static str,
+}
+
+/// The number in a leading `@700... ` when a text is addressed to a bot.
+fn bot_number(content: &str) -> Option<&str> {
+    let rest = content.strip_prefix('@')?;
+    let (number, _) = rest.split_once(' ')?;
+    (number.starts_with("700") && number.bytes().all(|byte| byte.is_ascii_digit()))
+        .then_some(number)
+}
+
+/// A text starting with a participating bot's number goes only to that bot,
+/// in the encryption it supports.
+async fn bot_recipient(
+    database: &crate::db::MixinDatabase,
+    conversation_id: &str,
+    content: &str,
+) -> Result<Option<BotRecipient>> {
+    let Some(number) = bot_number(content) else {
+        return Ok(None);
+    };
+    let app = database
+        .app_dao
+        .find_participant_app_by_number(conversation_id, number)
+        .await?;
+    Ok(app.map(|app| BotRecipient {
+        category: if app
+            .capabilities
+            .is_some_and(|capabilities| capabilities.contains("ENCRYPTED"))
+        {
+            sdk::message_category::ENCRYPTED_TEXT
+        } else {
+            sdk::message_category::PLAIN_TEXT
+        },
+        app_id: app.app_id,
+    }))
+}
+
 pub(crate) fn normalize_message_media_paths(
     view: &mut model::MessageListView,
     is_transcript: bool,
@@ -1243,6 +1287,73 @@ fn normalized_quote_content(
         serde_json::Value::String(path.to_string_lossy().into_owned()),
     );
     Ok(Some(serde_json::to_string(quote)?))
+}
+
+#[cfg(test)]
+mod bot_recipient_tests {
+    use super::bot_recipient;
+
+    #[tokio::test]
+    async fn leading_number_of_a_participating_bot_addresses_only_that_bot() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = crate::db::MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let pool = &database.user_dao.0;
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, category, name, created_at, status, \
+             mute_until) VALUES ('group', 'GROUP', '', 0, 0, 0)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        for (app, number, capabilities, joined) in [
+            ("encrypted", "7000101", r#"["ENCRYPTED"]"#, true),
+            ("plain", "7000102", r#"["CONTACT"]"#, true),
+            ("absent", "7000103", r#"["CONTACT"]"#, false),
+        ] {
+            crate::db::query(
+                "INSERT INTO apps (app_id, app_number, home_uri, redirect_uri, name, icon_url, \
+                 category, description, app_secret, capabilities, creator_id, updated_at) \
+                 VALUES (?, ?, '', '', '', '', '', '', '', ?, '', 0)",
+            )
+            .bind(app)
+            .bind(number)
+            .bind(capabilities)
+            .execute(pool)
+            .await
+            .unwrap();
+            if joined {
+                crate::db::query(
+                    "INSERT INTO participants (conversation_id, user_id, created_at) \
+                     VALUES ('group', ?, 0)",
+                )
+                .bind(app)
+                .execute(pool)
+                .await
+                .unwrap();
+            }
+        }
+
+        for (content, expected) in [
+            ("@7000101 hello", Some(("encrypted", "ENCRYPTED_TEXT"))),
+            ("@7000102 hello", Some(("plain", "PLAIN_TEXT"))),
+            ("@7000103 hello", None),
+            ("@7000102", None),
+            ("hello @7000102 there", None),
+            ("@7000102x hello", None),
+        ] {
+            let found = bot_recipient(&database, "group", content).await.unwrap();
+            assert_eq!(
+                found
+                    .as_ref()
+                    .map(|bot| (bot.app_id.as_str(), bot.category)),
+                expected,
+                "{content}"
+            );
+        }
+        database.close().await;
+    }
 }
 
 #[cfg(test)]

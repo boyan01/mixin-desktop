@@ -260,6 +260,22 @@ WHERE participant.user_id = ?1
         Ok(sessions)
     }
 
+    pub async fn participant_session_key_of_user(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> Result<Option<ParticipantSession>, Error> {
+        Ok(crate::db::query_as::<ParticipantSession>(
+            "SELECT * FROM participant_session \
+             WHERE conversation_id = ? AND user_id = ? \
+             AND public_key IS NOT NULL AND public_key != '' LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(user_id)
+        .fetch_optional(&self.0)
+        .await?)
+    }
+
     pub async fn participant_session_key_without_self(
         &self,
         conversation_id: &str,

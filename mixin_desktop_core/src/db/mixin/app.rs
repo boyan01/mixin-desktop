@@ -33,6 +33,22 @@ impl AppDao {
         Ok(result)
     }
 
+    pub async fn find_participant_app_by_number(
+        &self,
+        conversation_id: &str,
+        app_number: &str,
+    ) -> Result<Option<App>, Error> {
+        Ok(crate::db::query_as::<App>(
+            "SELECT app.* FROM apps app \
+             INNER JOIN participants participant ON participant.user_id = app.app_id \
+             WHERE participant.conversation_id = ? AND app.app_number = ?",
+        )
+        .bind(conversation_id)
+        .bind(app_number)
+        .fetch_optional(&self.0)
+        .await?)
+    }
+
     pub async fn insert_sdk_apps(&self, apps: &[sdk::App]) -> Result<(), Error> {
         if apps.is_empty() {
             return Ok(());
