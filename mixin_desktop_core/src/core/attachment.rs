@@ -605,6 +605,16 @@ pub(crate) fn attachment_path(account_data_dir: &Path, message: &Message) -> Res
         .join(format!("{}{}", message.message_id, suffix)))
 }
 
+/// The attachment store answers 404 once an upload has expired; retrying
+/// cannot succeed, unlike any other download failure.
+pub(crate) fn is_attachment_expired(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<reqwest::Error>()
+            .is_some_and(|error| error.status() == Some(reqwest::StatusCode::NOT_FOUND))
+    })
+}
+
 /// Files that hold a message's media, including its transcript children.
 /// A relative `media_url` is the Flutter form and resolves from the message.
 pub(crate) async fn message_media_files(

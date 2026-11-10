@@ -288,3 +288,39 @@ async fn sdk_socks_proxy_authenticates_and_resolves_the_target_at_the_proxy() {
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn only_http_not_found_marks_a_download_as_expired() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        for status in ["404 Not Found", "500 Internal Server Error"] {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            read_request(&mut stream).await;
+            let response =
+                format!("HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            stream.write_all(response.as_bytes()).await.unwrap();
+        }
+    });
+    let directory = tempfile::tempdir().unwrap();
+    let attachment = AttachmentService::new(
+        Arc::new(MixinClient::new(sdk::Credential::None)),
+        reqwest::Client::builder().no_proxy().build().unwrap(),
+        directory.path(),
+    );
+    let url = reqwest::Url::parse(&format!("http://{address}/attachment")).unwrap();
+    let target = directory.path().join("download");
+
+    let not_found = attachment
+        .download_to_file(&url, &target, None, None)
+        .await
+        .unwrap_err();
+    let server_error = attachment
+        .download_to_file(&url, &target, None, None)
+        .await
+        .unwrap_err();
+
+    assert!(is_attachment_expired(&not_found));
+    assert!(!is_attachment_expired(&server_error));
+    server.await.unwrap();
+}

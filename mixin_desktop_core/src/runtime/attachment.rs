@@ -7,7 +7,9 @@ use sdk::message_category::MessageCategory as _;
 use sdk::{AttachmentMessage, MessageStatus};
 use tokio_util::sync::CancellationToken;
 
-use crate::core::attachment::{attachment_file_name, attachment_path, transcript_attachment_path};
+use crate::core::attachment::{
+    attachment_file_name, attachment_path, is_attachment_expired, transcript_attachment_path,
+};
 use crate::core::message::decrypt::{transcript_attachment_id, transcript_attachment_message};
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
@@ -862,6 +864,14 @@ impl AttachmentAccess {
         self.finish_saved_download(message_id);
         self.remove_attachment_progress(message_id);
         if let Err(error) = result {
+            if is_attachment_expired(&error) {
+                self.database
+                    .message_dao
+                    .update_media_status(message_id, MediaStatus::Expired)
+                    .await?;
+                self.notify_messages_changed(Some(&message.conversation_id));
+                return Ok(());
+            }
             self.database
                 .message_dao
                 .cancel_pending_transfer(message_id)
