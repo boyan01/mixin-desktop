@@ -548,6 +548,20 @@ SELECT EXISTS (
         Ok(())
     }
 
+    /// Records that the server created the conversation and its disappearing
+    /// duration, which applies to the send that triggered the creation.
+    pub async fn mark_created(&self, cid: &str, expire_in: i64) -> Result<(), Error> {
+        let _ = crate::db::query(
+            "UPDATE conversations SET status = ?, expire_in = ? WHERE conversation_id = ?",
+        )
+        .bind(ConversationStatus::SUCCESS)
+        .bind(expire_in)
+        .bind(cid)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
     pub async fn update_status(&self, cid: &str, status: ConversationStatus) -> Result<(), Error> {
         let _ = crate::db::query("UPDATE conversations SET status = ? WHERE conversation_id = ?")
             .bind(status)
@@ -654,6 +668,32 @@ SELECT EXISTS (
         .execute(&self.0)
         .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod creation_tests {
+    #[tokio::test]
+    async fn creating_a_conversation_stores_its_status_and_server_expiry() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = crate::db::MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let dao = &database.conversation_dao;
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, category, name, created_at, status, \
+             mute_until, expire_in) VALUES ('new', 'CONTACT', '', 0, 0, 0, 0)",
+        )
+        .execute(&dao.0)
+        .await
+        .unwrap();
+
+        dao.mark_created("new", 3600).await.unwrap();
+
+        let stored = dao.find_conversation_by_id("new").await.unwrap().unwrap();
+        assert_eq!(stored.status, super::ConversationStatus::SUCCESS);
+        assert_eq!(stored.expire_in, 3600);
+        database.close().await;
     }
 }
 

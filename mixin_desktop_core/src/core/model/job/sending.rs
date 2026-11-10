@@ -270,16 +270,17 @@ impl SendingJobRunner {
             .blaze_message
             .as_deref()
             .ok_or_else(|| anyhow!("sending job has no payload"))?;
-        let payload = serde_json::from_str::<SendingPayload>(payload_text).unwrap_or_else(|_| {
-            SendingPayload {
-                message_id: payload_text.to_string(),
-                recipient_id: job.user_id.clone(),
-                session_id: None,
-                resend: job.resend_message_id.is_some(),
-                silent: false,
-                expire_in: 0,
-            }
-        });
+        let mut payload =
+            serde_json::from_str::<SendingPayload>(payload_text).unwrap_or_else(|_| {
+                SendingPayload {
+                    message_id: payload_text.to_string(),
+                    recipient_id: job.user_id.clone(),
+                    session_id: None,
+                    resend: job.resend_message_id.is_some(),
+                    silent: false,
+                    expire_in: 0,
+                }
+            });
         let resend = payload.resend || job.resend_message_id.is_some();
         let message = if resend {
             self.database
@@ -317,31 +318,37 @@ impl SendingJobRunner {
             self.client.clone(),
             self.user_id.clone(),
         );
-        if let Err(error) = conversation_service
+        let created_expire_in = match conversation_service
             .ensure_conversation_exists(&conversation)
             .await
         {
-            if error.downcast_ref::<sdk::ApiError>().is_some_and(
-                |error| matches!(error, sdk::ApiError::Server(error) if error.code == BAD_DATA),
-            ) {
-                if !resend {
-                    self.database
-                        .message_dao
-                        .complete_sending_job(
-                            &message.message_id,
-                            None,
-                            MessageStatus::Failed,
-                            0,
-                            &job.job_id,
-                        )
-                        .await?;
-                } else {
-                    self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            Ok(expire_in) => expire_in,
+            Err(error) => {
+                if error.downcast_ref::<sdk::ApiError>().is_some_and(
+                    |error| matches!(error, sdk::ApiError::Server(error) if error.code == BAD_DATA),
+                ) {
+                    if !resend {
+                        self.database
+                            .message_dao
+                            .complete_sending_job(
+                                &message.message_id,
+                                None,
+                                MessageStatus::Failed,
+                                0,
+                                &job.job_id,
+                            )
+                            .await?;
+                    } else {
+                        self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+                    }
+                    self.notify_changes(&message.conversation_id);
+                    return Ok(false);
                 }
-                self.notify_changes(&message.conversation_id);
-                return Ok(false);
+                return Err(error);
             }
-            return Err(error);
+        };
+        if let Some(expire_in) = created_expire_in {
+            payload.expire_in = expire_in;
         }
         let stored_content = message
             .content

@@ -251,12 +251,14 @@ impl ConversationService {
         Ok(())
     }
 
+    /// Returns the server's disappearing duration when this call created the
+    /// conversation.
     pub async fn ensure_conversation_exists(
         &self,
         conversation: &Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<i64>> {
         if conversation.status == ConversationStatus::SUCCESS {
-            return Ok(());
+            return Ok(None);
         }
         let owner_id = conversation
             .owner_id
@@ -279,9 +281,10 @@ impl ConversationService {
             })
             .await?;
 
+        let expire_in = response.expire_in;
         self.db
             .conversation_dao
-            .update_status(&conversation.conversation_id, ConversationStatus::SUCCESS)
+            .mark_created(&conversation.conversation_id, expire_in)
             .await?;
         if let Some(sessions) = response.participant_sessions {
             if !sessions.is_empty() {
@@ -302,7 +305,7 @@ impl ConversationService {
                     .await?;
             }
         }
-        Ok(())
+        Ok(Some(expire_in))
     }
 
     async fn refresh_participants(
