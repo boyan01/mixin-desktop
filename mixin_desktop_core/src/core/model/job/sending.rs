@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
-use base64ct::{Base64, Encoding};
+use base64ct::{Base64, Base64UrlUnpadded, Encoding};
 use log::error;
 use serde::Deserialize;
 use tokio::sync::Notify;
@@ -607,7 +607,7 @@ impl SendingJobRunner {
 
         let mut sessions = vec![(
             remote.session_id,
-            Base64::decode_vec(
+            decode_session_public_key(
                 remote
                     .public_key
                     .as_deref()
@@ -617,7 +617,7 @@ impl SendingJobRunner {
         if let Some(other) = other_self {
             sessions.push((
                 other.session_id,
-                Base64::decode_vec(
+                decode_session_public_key(
                     other
                         .public_key
                         .as_deref()
@@ -657,6 +657,12 @@ impl SendingJobRunner {
             .await?;
         Ok(Some(result))
     }
+}
+
+/// Session public keys arrive in URL-safe Base64 without padding, the form
+/// both mobile clients decode.
+fn decode_session_public_key(value: &str) -> Result<Vec<u8>> {
+    Ok(Base64UrlUnpadded::decode_vec(value.trim_end_matches('='))?)
 }
 
 fn truncate_utf16(value: &str, max_code_units: usize) -> &str {
@@ -748,6 +754,21 @@ mod tests {
         assert_eq!(wire[0]["media_digest"], "digest");
         assert!(wire[0].get("media_url").is_none());
         assert!(wire[0].get("media_status").is_none());
+    }
+
+    #[test]
+    fn session_public_key_decodes_url_safe_form_and_rejects_standard_alphabet() {
+        use base64ct::{Base64, Base64UrlUnpadded, Encoding};
+        let key = [0xfb_u8; 32];
+        let url_safe = Base64UrlUnpadded::encode_string(&key);
+        assert!(url_safe.contains('-') && url_safe.contains('_'));
+
+        assert_eq!(super::decode_session_public_key(&url_safe).unwrap(), key);
+        assert_eq!(
+            super::decode_session_public_key(&format!("{url_safe}=")).unwrap(),
+            key
+        );
+        assert!(super::decode_session_public_key(&Base64::encode_string(&key)).is_err());
     }
 
     #[test]
