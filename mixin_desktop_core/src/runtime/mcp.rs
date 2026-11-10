@@ -921,6 +921,19 @@ struct EventsQuery {
     cursor: Option<String>,
 }
 
+fn status_event(
+    connection: &mut tokio::sync::watch::Receiver<bool>,
+    health: &mut tokio::sync::watch::Receiver<String>,
+) -> axum::response::sse::Event {
+    let data = json!({
+        "connected": *connection.borrow_and_update(),
+        "account_health": health.borrow_and_update().as_str(),
+    });
+    axum::response::sse::Event::default()
+        .event("status")
+        .data(data.to_string())
+}
+
 /// Server-sent events for messages an agent should see. Each event id is a
 /// cursor; reconnecting with `?cursor=` or `Last-Event-ID` resumes after it,
 /// and omitting both starts from new messages.
@@ -956,6 +969,8 @@ async fn events(
     };
     let mut changes = runtime.subscribe_notification_changes();
     let mut shutdown = runtime.subscribe_shutdown();
+    let mut connection = runtime.subscribe_connection_status();
+    let mut health = runtime.subscribe_account_health();
     let mut row_id = match cursor {
         Some(cursor) => cursor,
         None => match runtime.latest_notification_row_id().await {
@@ -971,6 +986,7 @@ async fn events(
                 .event("ready")
                 .data(json!({"cursor": row_id.to_string()}).to_string()),
         );
+        yield Ok(status_event(&mut connection, &mut health));
         loop {
             loop {
                 let batch = match source.agent_event_batch(row_id, 200).await {
@@ -994,18 +1010,35 @@ async fn events(
                     break;
                 }
             }
-            tokio::select! {
+            let status_changed = tokio::select! {
                 changed = changes.changed() => {
                     if changed.is_err() {
                         break;
                     }
+                    false
+                }
+                changed = connection.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    true
+                }
+                changed = health.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    true
                 }
                 changed = shutdown.changed() => {
                     if changed.is_err() || *shutdown.borrow() {
                         break;
                     }
+                    false
                 }
                 _ = cancellation.cancelled() => break,
+            };
+            if status_changed {
+                yield Ok(status_event(&mut connection, &mut health));
             }
         }
     };
@@ -1069,10 +1102,21 @@ impl McpService {
 
 #[tool_router]
 impl McpService {
-    #[tool(description = "Get login state, permission scopes, and enabled MCP tools.")]
+    #[tool(
+        description = "Get login and connection state, account health, permission scopes, and enabled MCP tools."
+    )]
     async fn mixin_get_app_status(&self) -> Json<ToolOutput> {
+        let (connected, account_health) = match &self.state.source {
+            McpSource::Runtime(runtime) => (
+                Some(*runtime.subscribe_connection_status().borrow()),
+                Some(runtime.subscribe_account_health().borrow().clone()),
+            ),
+            McpSource::ReadOnly(_) => (None, None),
+        };
         Json(object(json!({
             "logged_in": self.state.source.is_running(),
+            "connected": connected,
+            "account_health": account_health,
             "user_id": self.state.source.user_id(),
             "source": self.state.source.kind(),
             "read_only": self.state.source.is_read_only(),
@@ -2851,6 +2895,8 @@ mod tests {
         assert_eq!(status["permission_scopes"]["message_send"], false);
         assert_eq!(status.get("source"), Some(&json!("database")));
         assert_eq!(status.get("read_only"), Some(&json!(true)));
+        assert_eq!(status.get("connected"), Some(&Value::Null));
+        assert_eq!(status.get("account_health"), Some(&Value::Null));
         assert_eq!(status.get("user_id"), Some(&json!("account-id")));
         assert_eq!(search["messages"][0]["message_id"], "price-alert-message");
         assert_eq!(search["messages"][0]["conversation"]["name"], "Route Dev");

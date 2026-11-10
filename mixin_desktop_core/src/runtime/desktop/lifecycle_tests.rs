@@ -585,6 +585,42 @@ async fn runner_exit_without_shutdown_request_closes_open_event_streams() {
 }
 
 #[tokio::test]
+async fn event_stream_reports_current_status_then_each_health_change() {
+    let fixture = Fixture::new().await;
+    let (endpoint, token) = fixture.start_mcp().await;
+    let mut response = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .unwrap()
+        .get(endpoint)
+        .bearer_auth(token)
+        .send()
+        .await
+        .unwrap();
+    let mut body = String::new();
+    let mut read_until = async |expected: &str| {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while !body.contains(expected) {
+                let chunk = response.chunk().await.unwrap().expect("stream stays open");
+                body.push_str(std::str::from_utf8(&chunk).unwrap());
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("missing {expected:?} in {body:?}"));
+    };
+
+    read_until("event: status\ndata: {\"account_health\":\"ready\",\"connected\":false}").await;
+    fixture
+        .runtime
+        .account_health
+        .send_replace("time_inaccurate".into());
+    read_until("data: {\"account_health\":\"time_inaccurate\",\"connected\":false}").await;
+
+    drop(response);
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn shutting_down_old_account_does_not_stop_mcp_bound_to_its_replacement() {
     let old = Fixture::new().await;
     let replacement = Fixture::new().await;

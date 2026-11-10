@@ -84,6 +84,15 @@ event: ready
 data: {"cursor":"123"}
 ```
 
+`status` is sent after `ready` and whenever the Blaze connection or account
+health changes. `account_health` is `ready`, `time_inaccurate`,
+`update_required`, or `unauthorized`:
+
+```
+event: status
+data: {"account_health":"ready","connected":true}
+```
+
 `message` is sent for each triggering message:
 
 ```
