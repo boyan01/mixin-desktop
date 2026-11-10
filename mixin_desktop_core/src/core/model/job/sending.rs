@@ -377,17 +377,7 @@ impl SendingJobRunner {
             }
         }
         let content = outbound_content.as_str();
-        let mentions = if message.category.is_signal() && message.category.is_text() {
-            let identity_numbers = mention_identity_numbers(content);
-            let user_ids = self
-                .database
-                .user_dao
-                .find_user_ids_by_identity_numbers(&identity_numbers)
-                .await?;
-            (!user_ids.is_empty()).then_some(user_ids)
-        } else {
-            None
-        };
+        let mentions = outgoing_mentions(&self.database, &message.category, content).await?;
         if payload.expire_in < 0 {
             self.database
                 .message_dao
@@ -412,9 +402,9 @@ impl SendingJobRunner {
             self.send_plain_message(
                 &message,
                 &message.category,
-                payload.recipient_id.as_deref(),
+                &payload,
                 content,
-                payload.silent,
+                mentions.as_deref(),
                 expire_in,
             )
             .await?
@@ -461,7 +451,7 @@ impl SendingJobRunner {
             }
         } else if message.category.is_encrypted() {
             match self
-                .send_encrypted_message(&message, &payload, content, expire_in)
+                .send_encrypted_message(&message, &payload, content, mentions.as_deref(), expire_in)
                 .await?
             {
                 Some(result) => result,
@@ -477,9 +467,9 @@ impl SendingJobRunner {
                     self.send_plain_message(
                         &message,
                         &category,
-                        payload.recipient_id.as_deref(),
+                        &payload,
                         content,
-                        payload.silent,
+                        mentions.as_deref(),
                         expire_in,
                     )
                     .await?
@@ -533,9 +523,9 @@ impl SendingJobRunner {
         &self,
         message: &crate::db::mixin::message::Message,
         category: &String,
-        recipient_id: Option<&str>,
+        payload: &SendingPayload,
         content: &str,
-        silent: bool,
+        mentions: Option<&[String]>,
         expire_in: i32,
     ) -> Result<MessageResult> {
         let encoded = if category.is_text()
@@ -556,12 +546,13 @@ impl SendingJobRunner {
                 conversation_checksum: Some(
                     self.sender.get_check_sum(&message.conversation_id).await?,
                 ),
-                recipient_id: recipient_id.map(str::to_string),
+                recipient_id: payload.recipient_id.clone(),
                 message_id: Some(message.message_id.clone()),
                 category: Some(category.clone()),
                 data: Some(encoded),
                 quote_message_id: message.quote_message_id.clone(),
-                silent: Some(silent),
+                mentions: mentions.map(<[String]>::to_vec),
+                silent: Some(payload.silent),
                 expire_in: Some(expire_in),
                 ..BlazeMessageParam::default()
             }))
@@ -573,6 +564,7 @@ impl SendingJobRunner {
         message: &crate::db::mixin::message::Message,
         payload: &SendingPayload,
         content: &str,
+        mentions: Option<&[String]>,
         expire_in: i32,
     ) -> Result<Option<MessageResult>> {
         let mut remote = self
@@ -652,6 +644,7 @@ impl SendingJobRunner {
                 category: Some(message.category.clone()),
                 data: Some(Base64::encode_string(&encrypted)),
                 quote_message_id: message.quote_message_id.clone(),
+                mentions: mentions.map(<[String]>::to_vec),
                 silent: Some(payload.silent),
                 expire_in: Some(expire_in),
                 ..BlazeMessageParam::default()
@@ -712,6 +705,21 @@ fn truncate_utf16(value: &str, max_code_units: usize) -> &str {
         end = index + character.len_utf8();
     }
     &value[..end]
+}
+
+async fn outgoing_mentions(
+    database: &MixinDatabase,
+    category: &String,
+    content: &str,
+) -> Result<Option<Vec<String>>> {
+    if !category.is_text() {
+        return Ok(None);
+    }
+    let user_ids = database
+        .user_dao
+        .find_user_ids_by_identity_numbers(&mention_identity_numbers(content))
+        .await?;
+    Ok((!user_ids.is_empty()).then_some(user_ids))
 }
 
 fn mention_identity_numbers(content: &str) -> Vec<String> {
@@ -834,6 +842,45 @@ mod tests {
             super::resend_attachment_content(&message, "already-a-payload").unwrap(),
             "already-a-payload"
         );
+    }
+
+    #[tokio::test]
+    async fn outgoing_mentions_cover_every_text_encryption_and_skip_other_categories() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = crate::db::MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        crate::db::query(
+            "INSERT INTO users (user_id, identity_number, full_name, avatar_url, phone, \
+             is_verified, created_at, mute_until, has_pin, biography, is_scam, code_url, \
+             code_id, is_deactivated) \
+             VALUES ('alice', '7000', '', '', '', 0, 0, 0, 0, '', 0, '', '', 0)",
+        )
+        .execute(&database.user_dao.0)
+        .await
+        .unwrap();
+        for category in ["SIGNAL_TEXT", "PLAIN_TEXT", "ENCRYPTED_TEXT"] {
+            assert_eq!(
+                super::outgoing_mentions(&database, &category.to_owned(), "hi @7000")
+                    .await
+                    .unwrap(),
+                Some(vec!["alice".to_owned()]),
+                "{category}"
+            );
+        }
+        assert_eq!(
+            super::outgoing_mentions(&database, &"PLAIN_POST".to_owned(), "hi @7000")
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            super::outgoing_mentions(&database, &"PLAIN_TEXT".to_owned(), "nobody @9999")
+                .await
+                .unwrap(),
+            None
+        );
+        database.close().await;
     }
 
     #[test]
