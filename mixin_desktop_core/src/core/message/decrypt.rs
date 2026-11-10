@@ -1028,9 +1028,22 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_encrypted_message(&self, data: &BlazeMessageData) -> Result<()> {
-        let cipher_text = Base64::decode_vec(&data.data)?;
-        let plain_text =
-            encrypted_protocol::decrypt_message(&self.private_key, &self.session_id, &cipher_text)?;
+        let decrypted = Base64::decode_vec(&data.data)
+            .map_err(anyhow::Error::from)
+            .and_then(|cipher_text| {
+                encrypted_protocol::decrypt_message(
+                    &self.private_key,
+                    &self.session_id,
+                    &cipher_text,
+                )
+            });
+        let plain_text = match decrypted {
+            Ok(plain_text) => plain_text,
+            Err(err) => {
+                error!("failed to decrypt message:{} {:?}", data.message_id, err);
+                return self.insert_failed_message(data).await;
+            }
+        };
         let plain_text = String::from_utf8_lossy(&plain_text);
         self.process_decrypt_success(data, &plain_text).await?;
         Ok(())
@@ -1882,7 +1895,9 @@ impl ServiceDecryptMessage {
     }
 
     async fn insert_failed_message(&self, data: &BlazeMessageData) -> Result<()> {
-        if data.category.is_signal() && data.category != message_category::SIGNAL_KEY {
+        if data.category.is_encrypted()
+            || (data.category.is_signal() && data.category != message_category::SIGNAL_KEY)
+        {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
@@ -2325,6 +2340,23 @@ mod tests {
             .is_message_exits(&"event".to_owned())
             .await
             .unwrap());
+    }
+
+    #[tokio::test]
+    async fn undecryptable_encrypted_message_is_stored_as_failed() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let data = blaze_data("ENCRYPTED_TEXT", &Base64::encode_string(b"not encrypted"));
+
+        service.process_encrypted_message(&data).await.unwrap();
+
+        let stored = database
+            .message_dao
+            .find_message_by_id(&"event".to_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.status, MessageStatus::Failed);
+        assert_eq!(stored.user_id, "peer");
     }
 
     #[tokio::test]
