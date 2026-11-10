@@ -299,6 +299,22 @@ impl ServiceDecryptMessage {
         Ok(MessageStatus::Delivered)
     }
 
+    /// A sender on a session we have not seen must receive our sender key on
+    /// the next send.
+    async fn check_session(&self, data: &BlazeMessageData) -> Result<()> {
+        if data.conversation_id == SYSTEM_USER
+            || data.conversation_id == self.user_id
+            || data.user_id == SYSTEM_USER
+        {
+            return Ok(());
+        }
+        self.database
+            .participant_session_dao
+            .insert_if_absent(&data.conversation_id, &data.user_id, &data.session_id)
+            .await?;
+        Ok(())
+    }
+
     async fn parse_flood_message(&self, data: &BlazeMessageData) -> Result<MessageStatus> {
         let category = &data.category;
         let mut status = MessageStatus::Delivered;
@@ -306,6 +322,7 @@ impl ServiceDecryptMessage {
             .conversation
             .sync_conversation(&data.conversation_id)
             .await?;
+        self.check_session(data).await?;
         let handled: Result<()> = if category.is_illegal_message_category() {
             let message = Message {
                 message_id: data.message_id.clone(),
@@ -2017,6 +2034,36 @@ mod tests {
             .await
             .unwrap()
             .is_some());
+    }
+
+    #[tokio::test]
+    async fn incoming_message_records_new_session_and_keeps_known_delivery_state() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let dao = &database.participant_session_dao;
+        dao.insert_session("conversation", "known", PEER_SESSION, 1)
+            .await
+            .unwrap();
+        let mut known = plain_json("IGNORED");
+        known.user_id = "known".into();
+        let mut system = plain_json("IGNORED");
+        system.user_id = SYSTEM_USER.into();
+
+        for data in [plain_json("IGNORED"), known, system] {
+            service.parse_flood_message(&data).await.unwrap();
+        }
+
+        let mut sessions = dao
+            .get_participant_sessions("conversation")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|session| (session.user_id, session.sent_to_server))
+            .collect::<Vec<_>>();
+        sessions.sort();
+        assert_eq!(
+            sessions,
+            [("known".to_owned(), Some(1)), ("peer".to_owned(), None)]
+        );
     }
 
     #[tokio::test]

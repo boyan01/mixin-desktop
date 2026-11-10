@@ -105,6 +105,21 @@ impl ParticipantSessionDao {
         Ok(())
     }
 
+    /// Records a session seen on an incoming message; a known session keeps
+    /// its sender key delivery state.
+    pub async fn insert_if_absent(&self, cid: &str, uid: &str, sid: &str) -> Result<(), Error> {
+        let _ = crate::db::query(
+            "INSERT OR IGNORE INTO participant_session (conversation_id, user_id, session_id) \
+             VALUES (?, ?, ?)",
+        )
+        .bind(cid)
+        .bind(uid)
+        .bind(sid)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
     pub async fn insert_session(
         &self,
         cid: &str,
