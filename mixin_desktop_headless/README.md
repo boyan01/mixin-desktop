@@ -73,6 +73,10 @@ events after that cursor are replayed first, then new ones follow. Without a
 cursor, the stream starts at the newest message and only delivers new ones.
 The server keeps no delivery state.
 
+A message that could only be decrypted later is delivered when it becomes
+readable, with a newer cursor than messages received after it. Order by
+`message.created_at_micros` when the sequence matters.
+
 An invalid cursor returns `400`. A missing or wrong token returns `401`. A
 cursor past the newest message, for example after the database was rebuilt,
 returns `409`; reconnect without a cursor.

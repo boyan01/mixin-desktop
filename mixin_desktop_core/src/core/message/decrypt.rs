@@ -565,6 +565,37 @@ impl ServiceDecryptMessage {
         }
     }
 
+    /// A row that failed to decrypt was already passed by rowid cursors, so it
+    /// moves to the newest position once its content is readable. Only a row
+    /// nobody could read moves; a repeated resend must not deliver it twice.
+    async fn apply_re_decrypted_message(
+        &self,
+        data: &BlazeMessageData,
+        message_id: &str,
+        plain_text: &str,
+    ) -> Result<()> {
+        let unreadable = self
+            .database
+            .message_dao
+            .find_message_by_id(&message_id.to_string())
+            .await?
+            .is_some_and(|message| {
+                matches!(
+                    message.status,
+                    MessageStatus::Failed | MessageStatus::Unknown
+                )
+            });
+        self.process_re_decrypted_message(data, message_id, plain_text)
+            .await?;
+        if unreadable {
+            self.database
+                .message_dao
+                .move_to_newest_row(message_id)
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn process_re_decrypted_message(
         &self,
         data: &BlazeMessageData,
@@ -777,7 +808,7 @@ impl ServiceDecryptMessage {
         if data.category != message_category::SIGNAL_KEY {
             let plain = std::str::from_utf8(&plain_text)?;
             if let Some(resend_message_id) = message_data.resend_message_id {
-                self.process_re_decrypted_message(data, &resend_message_id, plain)
+                self.apply_re_decrypted_message(data, &resend_message_id, plain)
                     .await?;
                 self.database
                     .message_history_dao
@@ -2542,6 +2573,57 @@ mod tests {
             .is_message_exits(&"event".to_owned())
             .await
             .unwrap());
+    }
+
+    #[tokio::test]
+    async fn re_decrypted_message_reaches_cursors_past_it_exactly_once() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let dao = &database.message_dao;
+        for (message_id, status) in [
+            ("recovered", MessageStatus::Failed),
+            ("later", MessageStatus::Delivered),
+        ] {
+            dao.insert_message(&Message {
+                message_id: message_id.into(),
+                conversation_id: "conversation".into(),
+                user_id: "peer".into(),
+                category: "SIGNAL_TEXT".into(),
+                content: Some("cipher".into()),
+                status,
+                created_at: chrono::Utc::now().naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        }
+        let cursor = dao.latest_row_id().await.unwrap();
+        let mut data = blaze_data("SIGNAL_TEXT", "");
+        data.status = MessageStatus::Delivered;
+
+        service
+            .apply_re_decrypted_message(&data, "recovered", "readable")
+            .await
+            .unwrap();
+
+        let items = dao
+            .notification_items_after("me", cursor, 10)
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].message_id, "recovered");
+        assert_eq!(items[0].content.as_deref(), Some("readable"));
+        assert_eq!(items[0].status, MessageStatus::Delivered);
+
+        let cursor = items[0].row_id;
+        service
+            .apply_re_decrypted_message(&data, "recovered", "readable")
+            .await
+            .unwrap();
+        assert!(dao
+            .notification_items_after("me", cursor, 10)
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]

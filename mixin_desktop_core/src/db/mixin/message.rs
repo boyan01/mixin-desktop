@@ -618,6 +618,18 @@ LIMIT ?4
         .await?)
     }
 
+    /// Gives a message the newest rowid, the position rowid cursors read next.
+    pub async fn move_to_newest_row(&self, message_id: &str) -> Result<(), Error> {
+        let _ = crate::db::query(
+            "UPDATE messages SET rowid = (SELECT MAX(rowid) + 1 FROM messages) \
+             WHERE message_id = ?",
+        )
+        .bind(message_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
     pub async fn latest_row_id(&self) -> Result<i64, Error> {
         Ok(
             crate::db::query_scalar("SELECT COALESCE(MAX(rowid), 0) FROM messages")
