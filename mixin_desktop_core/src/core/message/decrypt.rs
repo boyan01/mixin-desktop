@@ -731,6 +731,11 @@ impl ServiceDecryptMessage {
             Ok(text) => text,
             Err(err) => {
                 error!("failed to decrypt message:{} {:?}", data.message_id, err);
+                // The original row stays failed; a broken copy must not add one
+                // or start another round of key requests.
+                if message_data.resend_message_id.is_some() {
+                    return Ok(());
+                }
                 self.sender
                     .refresh_signal_key(&data.conversation_id)
                     .await?;
@@ -2301,6 +2306,23 @@ mod tests {
         let resends = &database.participant_session_dao;
         assert!(resends
             .has_resend_request("peer", PEER_SESSION, "absent")
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn undecryptable_resend_copy_adds_no_failed_row() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let mut compose = vec![3, 2, 1, 0, 0, 0, 0, 0];
+        compose.extend_from_slice(PEER_SESSION.as_bytes());
+        compose.extend_from_slice(b"not a signal message");
+        let data = blaze_data("SIGNAL_TEXT", &Base64::encode_string(&compose));
+
+        service.process_signal_message(&data).await.unwrap();
+
+        assert!(!database
+            .message_dao
+            .is_message_exits(&"event".to_owned())
             .await
             .unwrap());
     }
