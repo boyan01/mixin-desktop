@@ -355,6 +355,8 @@ impl SendingJobRunner {
                 bail!("message {} has no transcript entries", message.message_id);
             }
             transcript_sending_content(&mut transcripts)?
+        } else if resend && message.category.is_attachment() {
+            resend_attachment_content(&message, stored_content)?
         } else {
             stored_content.to_string()
         };
@@ -659,6 +661,36 @@ impl SendingJobRunner {
     }
 }
 
+/// A sent attachment stores only its `AttachmentExtra`; a resend must carry the
+/// payload that the recipient decodes. Other content already is that payload.
+fn resend_attachment_content(message: &Message, stored_content: &str) -> Result<String> {
+    let Ok(extra) = serde_json::from_str::<AttachmentExtra>(stored_content) else {
+        return Ok(stored_content.to_string());
+    };
+    let attachment = AttachmentMessage {
+        key: message.media_key.clone(),
+        digest: message.media_digest.clone(),
+        attachment_id: extra.attachment_id,
+        mime_type: message.media_mime_type.clone().unwrap_or_default(),
+        size: message.media_size.unwrap_or_default(),
+        name: message.name.clone(),
+        width: message.media_width,
+        height: message.media_height,
+        thumbnail: message.thumb_image.clone(),
+        duration: message.media_duration.parse().ok(),
+        waveform: message
+            .media_waveform
+            .as_deref()
+            .and_then(|value| Base64::decode_vec(value).ok()),
+        caption: message.caption.clone(),
+        created_at: extra.created_at,
+        shareable: extra.shareable,
+    };
+    Ok(Base64::encode_string(
+        serde_json::to_string(&attachment)?.as_bytes(),
+    ))
+}
+
 /// Session public keys arrive in URL-safe Base64 without padding, the form
 /// both mobile clients decode.
 fn decode_session_public_key(value: &str) -> Result<Vec<u8>> {
@@ -769,6 +801,39 @@ mod tests {
             key
         );
         assert!(super::decode_session_public_key(&Base64::encode_string(&key)).is_err());
+    }
+
+    #[test]
+    fn resent_attachment_carries_decodable_payload_rebuilt_from_stored_row() {
+        use base64ct::{Base64, Encoding};
+        let message = crate::db::mixin::message::Message {
+            message_id: "image".into(),
+            category: "SIGNAL_IMAGE".into(),
+            media_key: Some(vec![1, 2]),
+            media_digest: Some(vec![3]),
+            media_mime_type: Some("image/png".into()),
+            media_size: Some(42),
+            media_width: Some(8),
+            media_duration: "1200".into(),
+            ..Default::default()
+        };
+        let stored = r#"{"attachment_id":"uploaded","message_id":"image","shareable":false}"#;
+
+        let wire = super::resend_attachment_content(&message, stored).unwrap();
+
+        let payload: sdk::AttachmentMessage =
+            serde_json::from_slice(&Base64::decode_vec(&wire).unwrap()).unwrap();
+        assert_eq!(payload.attachment_id, "uploaded");
+        assert_eq!(payload.key, Some(vec![1, 2]));
+        assert_eq!(payload.digest, Some(vec![3]));
+        assert_eq!(payload.mime_type, "image/png");
+        assert_eq!((payload.size, payload.width), (42, Some(8)));
+        assert_eq!(payload.duration, Some(1200));
+        assert_eq!(payload.shareable, Some(false));
+        assert_eq!(
+            super::resend_attachment_content(&message, "already-a-payload").unwrap(),
+            "already-a-payload"
+        );
     }
 
     #[test]
