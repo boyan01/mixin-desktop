@@ -53,7 +53,7 @@ scopes and tools.
 
 Read tools are always available. The send tools (`mixin_send_text`,
 `mixin_send_image`, `mixin_send_sticker`, `mixin_send_contact`,
-`mixin_send_app_card`) exist only when `serve` runs with `--allow-send`. The
+`mixin_send_location`, `mixin_send_app_card`) exist only when `serve` runs with `--allow-send`. The
 desktop apps cannot enable them.
 
 ## Events

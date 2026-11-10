@@ -1795,6 +1795,35 @@ impl McpService {
     }
 
     #[tool(
+        description = "Send a location by latitude and longitude, optionally with a name and address. Requires the message_send scope."
+    )]
+    async fn mixin_send_location(
+        &self,
+        Parameters(input): Parameters<SendLocationInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            let message_id = runtime
+                .message_access()
+                .send_location(
+                    id.clone(),
+                    input.latitude,
+                    input.longitude,
+                    input.name,
+                    input.address,
+                    input.quote_message_id,
+                )
+                .await?;
+            Ok(sent_json(id, message_id))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
+    #[tool(
         description = "Share a user's contact card by user_id, optionally quoting a message. Requires the message_send scope."
     )]
     async fn mixin_send_contact(
@@ -2044,6 +2073,17 @@ struct SendTextInput {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendLocationInput {
+    conversation_id: String,
+    latitude: f64,
+    longitude: f64,
+    name: Option<String>,
+    address: Option<String>,
+    /// Message to quote; it must belong to the same conversation.
+    quote_message_id: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct SendImageInput {
     conversation_id: String,
     /// Base64 image bytes, or a data: URL. At most 16 MiB decoded.
@@ -2121,10 +2161,11 @@ fn enabled_capabilities(state: &ServerState) -> Vec<&'static str> {
     capabilities
 }
 
-const SEND_TOOLS: [&str; 5] = [
+const SEND_TOOLS: [&str; 6] = [
     "mixin_send_text",
     "mixin_send_image",
     "mixin_send_sticker",
+    "mixin_send_location",
     "mixin_send_contact",
     "mixin_send_app_card",
 ];
@@ -2353,7 +2394,7 @@ mod tests {
     fn tool_router_builds_object_output_schemas_for_every_tool() {
         let tools = McpService::tool_router().list_all();
 
-        assert_eq!(tools.len(), 23);
+        assert_eq!(tools.len(), 24);
         // mixin_read_attachment returns image content instead of structured output.
         for tool in tools
             .into_iter()

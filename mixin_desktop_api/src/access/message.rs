@@ -391,6 +391,28 @@ impl MessageAccess {
             .await?)
     }
 
+    pub async fn send_location(
+        &self,
+        conversation_id: String,
+        latitude: f64,
+        longitude: f64,
+        name: Option<String>,
+        address: Option<String>,
+        quote_message_id: Option<String>,
+    ) -> Result<String, ClientError> {
+        Ok(self
+            .inner
+            .send_location(
+                conversation_id,
+                latitude,
+                longitude,
+                name,
+                address,
+                quote_message_id,
+            )
+            .await?)
+    }
+
     pub async fn conversation_is_encrypted(
         &self,
         conversation_id: String,

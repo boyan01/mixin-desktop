@@ -626,6 +626,45 @@ impl MessageAccess {
         post: bool,
         silent: bool,
     ) -> Result<String> {
+        let form = if post { TextForm::Post } else { TextForm::Text };
+        self.send_text_form(conversation_id, content, quote_message_id, form, silent)
+            .await
+    }
+
+    pub async fn send_location(
+        &self,
+        conversation_id: String,
+        latitude: f64,
+        longitude: f64,
+        name: Option<String>,
+        address: Option<String>,
+        quote_message_id: Option<String>,
+    ) -> Result<String> {
+        let content = location_content(&sdk::LocationMessage {
+            latitude,
+            longitude,
+            name,
+            address,
+            venue_type: None,
+        })?;
+        self.send_text_form(
+            conversation_id,
+            content,
+            quote_message_id,
+            TextForm::Location,
+            false,
+        )
+        .await
+    }
+
+    async fn send_text_form(
+        &self,
+        conversation_id: String,
+        content: String,
+        quote_message_id: Option<String>,
+        form: TextForm,
+        silent: bool,
+    ) -> Result<String> {
         let quote_message_id = quote_message_id.as_deref();
         let conversation_id = conversation_id.as_str();
         let content = content.as_str();
@@ -643,11 +682,15 @@ impl MessageAccess {
             .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
         let mut category = self.text_category(conversation.owner_id.as_deref()).await?;
         let mut recipient_id = None;
-        if post {
-            category = category.replace("_TEXT", "_POST");
-        } else if let Some(bot) = bot_recipient(&self.database, conversation_id, content).await? {
-            category = bot.category.to_string();
-            recipient_id = Some(bot.app_id);
+        match form {
+            TextForm::Post => category = category.replace("_TEXT", "_POST"),
+            TextForm::Location => category = category.replace("_TEXT", "_LOCATION"),
+            TextForm::Text => {
+                if let Some(bot) = bot_recipient(&self.database, conversation_id, content).await? {
+                    category = bot.category.to_string();
+                    recipient_id = Some(bot.app_id);
+                }
+            }
         }
         let message_id = Uuid::new_v4().to_string();
         let quote_content = match quote_message_id {
@@ -689,13 +732,15 @@ impl MessageAccess {
             .insert_outgoing_message(&message, &job)
             .await
             .map_err(crate::CoreError::from)?;
-        if let Err(error) = self
-            .database
-            .message_fts_dao
-            .upsert(&message_id, conversation_id, content)
-            .await
-        {
-            warn!("failed to index outgoing message {message_id}: {error}");
+        if !matches!(form, TextForm::Location) {
+            if let Err(error) = self
+                .database
+                .message_fts_dao
+                .upsert(&message_id, conversation_id, content)
+                .await
+            {
+                warn!("failed to index outgoing message {message_id}: {error}");
+            }
         }
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed(conversation_id);
@@ -1166,6 +1211,22 @@ fn is_shareable_app_card_action(action: &str) -> bool {
             && uri.path().trim_matches('/').starts_with("send"))
 }
 
+#[derive(Clone, Copy)]
+enum TextForm {
+    Text,
+    Post,
+    Location,
+}
+
+fn location_content(location: &sdk::LocationMessage) -> Result<String> {
+    if !(-90.0..=90.0).contains(&location.latitude)
+        || !(-180.0..=180.0).contains(&location.longitude)
+    {
+        return Err(anyhow!("location coordinates are out of range"));
+    }
+    Ok(serde_json::to_string(location)?)
+}
+
 struct BotRecipient {
     app_id: String,
     category: &'static str,
@@ -1287,6 +1348,34 @@ fn normalized_quote_content(
         serde_json::Value::String(path.to_string_lossy().into_owned()),
     );
     Ok(Some(serde_json::to_string(quote)?))
+}
+
+#[cfg(test)]
+mod location_tests {
+    use super::location_content;
+
+    fn location(latitude: f64, longitude: f64) -> sdk::LocationMessage {
+        sdk::LocationMessage {
+            latitude,
+            longitude,
+            name: Some("Cafe".into()),
+            address: None,
+            venue_type: None,
+        }
+    }
+
+    #[test]
+    fn valid_coordinates_produce_the_wire_payload_and_invalid_ones_are_rejected() {
+        let content = location_content(&location(31.2, -121.5)).unwrap();
+        let wire: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(wire["latitude"], 31.2);
+        assert_eq!(wire["longitude"], -121.5);
+        assert_eq!(wire["name"], "Cafe");
+
+        for (latitude, longitude) in [(90.5, 0.0), (0.0, -180.5), (f64::NAN, 0.0)] {
+            assert!(location_content(&location(latitude, longitude)).is_err());
+        }
+    }
 }
 
 #[cfg(test)]
