@@ -68,6 +68,19 @@ impl SettingDao {
         format!("show_pin_message_box_{account_id}_{conversation_id}")
     }
 
+    pub fn dismissed_announcement_key(account_id: &str, conversation_id: &str) -> String {
+        format!("dismissed_announcement_{account_id}_{conversation_id}")
+    }
+
+    /// The announcement to show, unless this exact text was already dismissed;
+    /// editing an announcement makes it unread again.
+    pub fn unread_announcement<'a>(
+        announcement: &'a str,
+        dismissed: Option<&str>,
+    ) -> Option<&'a str> {
+        (!announcement.trim().is_empty() && dismissed != Some(announcement)).then_some(announcement)
+    }
+
     pub(crate) async fn restore_pinned_preview(
         &self,
         account_id: &str,
@@ -354,6 +367,28 @@ impl ProxySettings {
         }
         let selected = self.selected_proxy_id.as_deref()?;
         self.proxies.iter().find(|proxy| proxy.id == selected)
+    }
+}
+
+#[cfg(test)]
+mod announcement_tests {
+    use super::SettingDao;
+
+    #[test]
+    fn announcement_is_unread_until_its_exact_text_is_dismissed() {
+        for (announcement, dismissed, expected) in [
+            ("Rules", None, Some("Rules")),
+            ("Rules", Some("Rules"), None),
+            ("New rules", Some("Rules"), Some("New rules")),
+            ("", None, None),
+            ("  ", None, None),
+        ] {
+            assert_eq!(
+                SettingDao::unread_announcement(announcement, dismissed),
+                expected,
+                "{announcement:?} {dismissed:?}"
+            );
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+mod announcement;
 mod audio;
 mod compose;
 mod gallery;
@@ -271,6 +272,10 @@ pub(crate) fn screen(
                 .child(when(
                     move || no_rows() && show_encryption(),
                     move || message_system::encryption_notice(actions),
+                ))
+                .child(announcement::banner(
+                    account.clone(),
+                    conversation.conversation_id.clone(),
                 ))
                 .child(
                     view()

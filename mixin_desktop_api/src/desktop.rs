@@ -110,6 +110,20 @@ impl SettingsClient {
         mixin_desktop_core::db::app::SettingDao::pinned_preview_key(account_id, conversation_id)
     }
 
+    pub fn dismissed_announcement_key(account_id: &str, conversation_id: &str) -> String {
+        mixin_desktop_core::db::app::SettingDao::dismissed_announcement_key(
+            account_id,
+            conversation_id,
+        )
+    }
+
+    pub fn unread_announcement<'a>(
+        announcement: &'a str,
+        dismissed: Option<&str>,
+    ) -> Option<&'a str> {
+        mixin_desktop_core::db::app::SettingDao::unread_announcement(announcement, dismissed)
+    }
+
     pub async fn photo_auto_download(&self) -> ClientResult<bool> {
         Ok(self.runtime.settings.photo_auto_download().await?)
     }
