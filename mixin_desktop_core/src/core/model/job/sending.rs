@@ -117,7 +117,8 @@ impl SendingJobRunner {
             .deliver(BlazeMessage::new_param_blaze(BlazeMessageParam {
                 conversation_id: Some(conversation_id.to_string()),
                 conversation_checksum: Some(self.sender.get_check_sum(conversation_id).await?),
-                message_id: Some(uuid::Uuid::new_v4().to_string()),
+                // Stable across retries so a lost response cannot apply it twice.
+                message_id: Some(job.job_id.clone()),
                 category: Some(category.to_string()),
                 data: Some(Base64::encode_string(content.as_bytes())),
                 status: Some(MessageStatus::Sending.into()),
@@ -896,6 +897,16 @@ mod tests {
             None
         );
         database.close().await;
+    }
+
+    #[test]
+    fn pin_job_id_is_a_new_uuid_usable_as_its_stable_message_id() {
+        use crate::db::mixin::job::Job;
+        let first = Job::create_send_pin_job("conversation", "payload");
+        let second = Job::create_send_pin_job("conversation", "payload");
+
+        assert!(uuid::Uuid::parse_str(&first.job_id).is_ok());
+        assert_ne!(first.job_id, second.job_id);
     }
 
     #[test]
