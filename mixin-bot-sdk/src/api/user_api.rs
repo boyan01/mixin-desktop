@@ -135,6 +135,10 @@ impl UserApi {
             .await
     }
 
+    pub async fn friends(&self) -> Result<Vec<User>, ApiError> {
+        self.client.get("friends").await
+    }
+
     pub async fn blocking_users(&self) -> Result<Vec<User>, ApiError> {
         self.client.get("blocking_users").await
     }

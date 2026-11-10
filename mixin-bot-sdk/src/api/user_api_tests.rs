@@ -130,3 +130,22 @@ async fn rejected_rename_preserves_server_error() {
         Err(ApiError::Server(crate::Error { code: 10002, .. }))
     ));
 }
+
+#[tokio::test]
+async fn friends_reads_the_contact_list_route() {
+    let (api, server) = endpoint(
+        200,
+        json!({"data": [{
+            "user_id": "friend", "identity_number": "7000", "relationship": "FRIEND",
+            "biography": "", "is_verified": false, "is_scam": false, "app": null,
+        }]}),
+    )
+    .await;
+
+    let users = api.friends().await.unwrap();
+
+    let request = server.await.unwrap();
+    assert!(request.starts_with(b"GET /friends HTTP/1.1"));
+    assert_eq!(users.len(), 1);
+    assert_eq!(users[0].user_id, "friend");
+}

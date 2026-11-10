@@ -973,6 +973,9 @@ async fn refresh_account_lists(app_service: Arc<AppService>) {
     if let Err(error) = app_service.circle.refresh_circles_if_empty().await {
         warn!("failed to refresh circles: {error}");
     }
+    if let Err(error) = app_service.conversation.refresh_contacts().await {
+        warn!("failed to refresh contacts: {error}");
+    }
 }
 
 /// Services assembled by `prepare_account` and consumed by the account loop.

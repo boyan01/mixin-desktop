@@ -171,6 +171,12 @@ impl ConversationService {
         Ok(users)
     }
 
+    pub async fn refresh_contacts(&self) -> anyhow::Result<()> {
+        let users = self.client.user_api.friends().await?;
+        self.db.user_dao.insert_missing_sdk_users(users).await?;
+        Ok(())
+    }
+
     pub async fn sync_conversation(&self, conversation_id: &str) -> anyhow::Result<()> {
         if conversation_id.is_empty()
             || conversation_id == sdk::SYSTEM_USER

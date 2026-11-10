@@ -345,6 +345,29 @@ impl UserDao {
         Ok(users)
     }
 
+    /// Stores only users not held locally; a contact list carries less than a
+    /// full profile refresh and must not overwrite one.
+    pub async fn insert_missing_sdk_users(&self, users: Vec<sdk::User>) -> Result<(), Error> {
+        let ids = users
+            .iter()
+            .map(|user| user.user_id.clone())
+            .collect::<Vec<_>>();
+        let existing = self
+            .find_users(&ids)
+            .await?
+            .into_iter()
+            .map(|user| user.user_id)
+            .collect::<std::collections::HashSet<_>>();
+        self.insert_sdk_users(
+            users
+                .into_iter()
+                .filter(|user| !existing.contains(&user.user_id))
+                .collect(),
+        )
+        .await?;
+        Ok(())
+    }
+
     pub async fn insert_sdk_users(&self, users: Vec<sdk::User>) -> Result<Vec<User>, Error> {
         if users.is_empty() {
             return Ok(Vec::new());
@@ -756,3 +779,46 @@ crate::db::storage::row_mapping!(User {
     is_deactivated: "is_deactivated",
     membership: "membership",
 });
+
+#[cfg(test)]
+mod contact_sync_tests {
+    #[tokio::test]
+    async fn contact_sync_adds_new_users_and_leaves_known_profiles_untouched() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = crate::db::MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let dao = &database.user_dao;
+        let user = |id: &str, name: &str| -> sdk::User {
+            serde_json::from_value(serde_json::json!({
+                "user_id": id, "identity_number": "7000", "full_name": name, "biography": "",
+                "is_verified": false, "is_scam": false, "app": null,
+            }))
+            .unwrap()
+        };
+        dao.insert_sdk_users(vec![user("known", "Full profile")])
+            .await
+            .unwrap();
+
+        dao.insert_missing_sdk_users(vec![user("known", "From list"), user("new", "New")])
+            .await
+            .unwrap();
+
+        let mut stored = dao
+            .find_users(&["known".to_owned(), "new".to_owned()])
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|user| (user.user_id, user.full_name))
+            .collect::<Vec<_>>();
+        stored.sort();
+        assert_eq!(
+            stored,
+            [
+                ("known".to_owned(), "Full profile".to_owned()),
+                ("new".to_owned(), "New".to_owned()),
+            ]
+        );
+        database.close().await;
+    }
+}
