@@ -1258,6 +1258,23 @@ impl ServiceDecryptMessage {
                 for (i, mid) in ids.iter().enumerate() {
                     let message = self.database.message_dao.find_message_by_id(mid).await?;
                     let Some(message) = message else {
+                        // Keep the event visible when the pinned message is not
+                        // local, as the mobile clients do.
+                        let placeholder = Message {
+                            message_id: if i == 0 {
+                                data.message_id.clone()
+                            } else {
+                                Uuid::new_v4().to_string()
+                            },
+                            conversation_id: data.conversation_id.clone(),
+                            quote_message_id: Some(mid.clone()),
+                            user_id: data.sender_id().clone(),
+                            status: MessageStatus::Read,
+                            category: message_category::MESSAGE_PIN.to_string(),
+                            created_at: chrono::Utc::now().naive_utc(),
+                            ..Message::default()
+                        };
+                        self.insert_message(&placeholder, data).await?;
                         continue;
                     };
 
@@ -2463,6 +2480,29 @@ mod tests {
             .unwrap();
 
         assert!(!file.exists());
+    }
+
+    #[tokio::test]
+    async fn pin_of_a_message_not_held_locally_adds_a_placeholder_row() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let payload = PinMessagePayload::Pin(vec!["not-local".into()]);
+        let data = blaze_data(
+            "MESSAGE_PIN",
+            &Base64::encode_string(serde_json::to_string(&payload).unwrap().as_bytes()),
+        );
+
+        service.process_pin(&data).await.unwrap();
+
+        let stored = database
+            .message_dao
+            .find_message_by_id(&"event".to_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.category, "MESSAGE_PIN");
+        assert_eq!(stored.quote_message_id.as_deref(), Some("not-local"));
+        assert_eq!(stored.content, None);
+        assert_eq!(stored.status, MessageStatus::Read);
     }
 
     #[tokio::test]
