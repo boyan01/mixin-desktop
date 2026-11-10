@@ -12,7 +12,7 @@ use uuid::Uuid;
 use sdk::blaze_message::{
     message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
     SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, NO_KEY, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
 use sdk::{
@@ -1037,6 +1037,16 @@ impl ServiceDecryptMessage {
                 self.sender
                     .send_process_signal_key(data, ProcessSignalKeyAction::ResendKey)
                     .await?;
+            } else if plain_json_message.action == NO_KEY {
+                let device_id = SignalProtocol::device_id(Some(&data.session_id))?;
+                self.signal_protocol
+                    .signal_database
+                    .ratchet_sender_key_dao
+                    .delete(
+                        &data.conversation_id,
+                        &format!("{}:{}", data.user_id, device_id),
+                    )
+                    .await?;
             } else if plain_json_message.action == DEVICE_TRANSFER_ACTION {
                 if let (Some(sender), Some(content)) =
                     (&self.device_transfer_controls, plain_json_message.content)
@@ -1958,6 +1968,55 @@ mod tests {
             .await
             .unwrap();
         (directory, database, signal_database, service)
+    }
+
+    const PEER_SESSION: &str = "10000000-0000-4000-8000-000000000002";
+
+    fn blaze_data(category: &str, data: &str) -> BlazeMessageData {
+        let now = chrono::Utc::now();
+        serde_json::from_value(serde_json::json!({
+            "conversation_id": "conversation", "user_id": "peer", "message_id": "event",
+            "category": category, "data": data, "status": "SENT", "created_at": now,
+            "updated_at": now, "source": "CREATE_MESSAGE", "session_id": PEER_SESSION
+        }))
+        .unwrap()
+    }
+
+    fn plain_json(action: &str) -> BlazeMessageData {
+        let payload = serde_json::json!({ "action": action }).to_string();
+        blaze_data("PLAIN_JSON", &Base64::encode_string(payload.as_bytes()))
+    }
+
+    #[tokio::test]
+    async fn no_key_from_peer_clears_only_that_sessions_pending_key_request() {
+        use crate::db::signal::ratchet_sender_key::RatchetSenderKey;
+        let (_directory, _database, signal_database, service) = decrypt_service_fixture().await;
+        let device = SignalProtocol::device_id(Some(PEER_SESSION)).unwrap();
+        let peer = format!("peer:{device}");
+        let dao = &signal_database.ratchet_sender_key_dao;
+        for sender in [peer.as_str(), "other:1"] {
+            dao.insert_sender_key(&RatchetSenderKey {
+                group_id: "conversation".into(),
+                sender_id: sender.into(),
+                status: ratchet_sender_key_status::REQUESTING.into(),
+                message_id: None,
+                created_at: String::new(),
+            })
+            .await
+            .unwrap();
+        }
+
+        service
+            .process_plain_message(&plain_json(NO_KEY))
+            .await
+            .unwrap();
+
+        assert_eq!(dao.find_status("conversation", &peer).await.unwrap(), None);
+        assert!(dao
+            .find_status("conversation", "other:1")
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test]
