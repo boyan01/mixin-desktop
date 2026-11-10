@@ -324,13 +324,17 @@ impl ServiceDecryptMessage {
             .await?;
         self.check_session(data).await?;
         let handled: Result<()> = if category.is_illegal_message_category() {
+            if data.conversation_id == SYSTEM_USER || data.conversation_id == self.user_id {
+                return Ok(status);
+            }
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
                 user_id: data.sender_id().clone(),
                 category: data.category.clone(),
+                content: Some(data.data.clone()),
                 created_at: data.created_at.naive_utc(),
-                status: data.status,
+                status: MessageStatus::Unknown,
                 ..Message::default()
             };
             self.insert_message(&message, data).await
@@ -2357,6 +2361,34 @@ mod tests {
             .unwrap();
         assert_eq!(stored.status, MessageStatus::Failed);
         assert_eq!(stored.user_id, "peer");
+    }
+
+    #[tokio::test]
+    async fn unsupported_category_keeps_raw_data_as_unknown_outside_system_conversations() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let mut system = blaze_data("FUTURE_CATEGORY", "raw");
+        system.conversation_id = SYSTEM_USER.into();
+        system.message_id = "system-event".into();
+
+        service
+            .parse_flood_message(&blaze_data("FUTURE_CATEGORY", "raw"))
+            .await
+            .unwrap();
+        service.parse_flood_message(&system).await.unwrap();
+
+        let stored = database
+            .message_dao
+            .find_message_by_id(&"event".to_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.status, MessageStatus::Unknown);
+        assert_eq!(stored.content.as_deref(), Some("raw"));
+        assert!(!database
+            .message_dao
+            .is_message_exits(&"system-event".to_owned())
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
