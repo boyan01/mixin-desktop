@@ -120,6 +120,56 @@ impl ParticipantSessionDao {
         Ok(())
     }
 
+    /// Adds a newly linked session to every conversation of `uid` that can
+    /// use it: all except bots without the encrypted capability.
+    pub async fn provision(
+        &self,
+        uid: &str,
+        sid: &str,
+        public_key: Option<&str>,
+    ) -> Result<(), Error> {
+        let _ = crate::db::query(
+            r#"
+INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, public_key)
+SELECT conversation.conversation_id, ?1, ?2, ?3
+FROM conversations conversation
+INNER JOIN users owner ON owner.user_id = conversation.owner_id
+INNER JOIN participants participant
+        ON participant.conversation_id = conversation.conversation_id
+LEFT JOIN apps app ON app.app_id = owner.app_id
+WHERE participant.user_id = ?1
+  AND (owner.app_id IS NULL OR app.capabilities LIKE '%ENCRYPTED%')
+            "#,
+        )
+        .bind(uid)
+        .bind(sid)
+        .bind(public_key)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn has_user_session(&self, uid: &str, sid: &str) -> Result<bool, Error> {
+        Ok(crate::db::query_scalar::<bool>(
+            "SELECT EXISTS(SELECT 1 FROM participant_session WHERE user_id = ? AND session_id = ?)",
+        )
+        .bind(uid)
+        .bind(sid)
+        .fetch_one(&self.0)
+        .await?)
+    }
+
+    pub async fn delete_user_session(&self, uid: &str, sid: &str) -> Result<(), Error> {
+        let _ = crate::db::query(
+            "DELETE FROM participant_session WHERE user_id = ? AND session_id = ?",
+        )
+        .bind(uid)
+        .bind(sid)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
     pub async fn insert_session(
         &self,
         cid: &str,

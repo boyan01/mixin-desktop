@@ -10,9 +10,9 @@ use tokio::sync::{broadcast, mpsc, watch};
 use uuid::Uuid;
 
 use sdk::blaze_message::{
-    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
-    SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, NO_KEY, RESEND_KEY, RESEND_MESSAGES,
+    message_action, system_session_action, BlazeMessageData, MessageStatus, PlainJsonMessage,
+    SnapshotMessage, SystemCircleMessage, SystemConversationMessage, SystemSessionMessage,
+    SystemUserMessage, ACKNOWLEDGE_MESSAGE_RECEIPTS, NO_KEY, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
 use sdk::{
@@ -1404,6 +1404,37 @@ fn decode_transcript_material(value: Option<&str>) -> Result<Option<Vec<u8>>> {
 }
 
 impl ServiceDecryptMessage {
+    /// Another session of a user was linked or removed: existing Signal
+    /// sessions with that user are stale and sender keys must be redistributed.
+    async fn process_system_session_message(&self, message: SystemSessionMessage) -> Result<()> {
+        if message.session_id == self.session_id {
+            return Ok(());
+        }
+        let sessions = &self.database.participant_session_dao;
+        let signal_sessions = &self.signal_protocol.signal_database.session_dao;
+        if message.action == system_session_action::PROVISION {
+            signal_sessions.delete_sessions(&message.user_id).await?;
+            sessions
+                .provision(
+                    &message.user_id,
+                    &message.session_id,
+                    message.public_key.as_deref(),
+                )
+                .await?;
+        } else if message.action == system_session_action::DESTROY
+            // The mobile clients likewise ignore a session they do not track.
+            && sessions
+                .has_user_session(&message.user_id, &message.session_id)
+                .await?
+        {
+            signal_sessions.delete_sessions(&message.user_id).await?;
+            sessions
+                .delete_user_session(&message.user_id, &message.session_id)
+                .await?;
+        }
+        Ok(())
+    }
+
     async fn process_system_message(&self, data: &BlazeMessageData) -> Result<()> {
         let content = decode(&data.data)?;
         if data.category == message_category::SYSTEM_CONVERSATION {
@@ -1413,6 +1444,9 @@ impl ServiceDecryptMessage {
         } else if data.category == message_category::SYSTEM_USER {
             let message: SystemUserMessage = serde_json::from_str(&content)?;
             self.process_system_user_message(message).await?
+        } else if data.category == message_category::SYSTEM_SESSION {
+            let message: SystemSessionMessage = serde_json::from_str(&content)?;
+            self.process_system_session_message(message).await?
         } else if data.category == message_category::SYSTEM_CIRCLE {
             let message: SystemCircleMessage = serde_json::from_str(&content)?;
             self.process_system_circle_message(data, message).await?
@@ -2064,6 +2098,133 @@ mod tests {
             sessions,
             [("known".to_owned(), Some(1)), ("peer".to_owned(), None)]
         );
+    }
+
+    fn system_session(action: &str, session: &str) -> BlazeMessageData {
+        let payload = serde_json::json!({
+            "action": action, "user_id": "me", "session_id": session, "public_key": "key"
+        })
+        .to_string();
+        blaze_data("SYSTEM_SESSION", &Base64::encode_string(payload.as_bytes()))
+    }
+
+    #[tokio::test]
+    async fn system_session_provision_targets_usable_conversations_and_drops_signal_sessions() {
+        let (_directory, database, signal, service) = decrypt_service_fixture().await;
+        let pool = &database.user_dao.0;
+        for (user, app) in [
+            ("friend", None),
+            ("encrypted-bot", Some("encrypted-bot")),
+            ("plain-bot", Some("plain-bot")),
+        ] {
+            crate::db::query(
+                "INSERT INTO users (user_id, identity_number, full_name, avatar_url, phone, \
+                 is_verified, created_at, mute_until, has_pin, biography, is_scam, code_url, \
+                 code_id, is_deactivated, app_id) \
+                 VALUES (?1, ?1, '', '', '', 0, 0, 0, 0, '', 0, '', '', 0, ?2)",
+            )
+            .bind(user)
+            .bind(app)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+        for (app, capabilities) in [
+            ("encrypted-bot", r#"["CONTACT","ENCRYPTED"]"#),
+            ("plain-bot", r#"["CONTACT"]"#),
+        ] {
+            crate::db::query(
+                "INSERT INTO apps (app_id, app_number, home_uri, redirect_uri, name, icon_url, \
+                 description, app_secret, capabilities, creator_id) \
+                 VALUES (?1, '', '', '', '', '', '', '', ?2, '')",
+            )
+            .bind(app)
+            .bind(capabilities)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+        for (conversation, owner, member) in [
+            ("with-friend", "friend", "me"),
+            ("with-encrypted-bot", "encrypted-bot", "me"),
+            ("with-plain-bot", "plain-bot", "me"),
+            ("without-me", "friend", "friend"),
+        ] {
+            crate::db::query(
+                "INSERT INTO conversations (conversation_id, owner_id, category, name, created_at, \
+                 status, mute_until) VALUES (?, ?, 'CONTACT', '', 0, 0, 0)",
+            )
+            .bind(conversation)
+            .bind(owner)
+            .execute(pool)
+            .await
+            .unwrap();
+            crate::db::query(
+                "INSERT INTO participants (conversation_id, user_id, created_at) VALUES (?, ?, 0)",
+            )
+            .bind(conversation)
+            .bind(member)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+        signal
+            .session_dao
+            .save_session("me", 1, vec![1])
+            .await
+            .unwrap();
+
+        service
+            .process_system_message(&system_session("PROVISION", "phone"))
+            .await
+            .unwrap();
+
+        let sessions = &database.participant_session_dao;
+        assert!(!signal.session_dao.has_session("me").await.unwrap());
+        for (conversation, expected) in [
+            ("with-friend", true),
+            ("with-encrypted-bot", true),
+            ("with-plain-bot", false),
+            ("without-me", false),
+        ] {
+            let rows = sessions
+                .get_participant_sessions(conversation)
+                .await
+                .unwrap();
+            assert_eq!(rows.iter().any(|row| row.session_id == "phone"), expected);
+            assert!(rows
+                .iter()
+                .all(|row| row.public_key.as_deref() == Some("key")));
+        }
+    }
+
+    #[tokio::test]
+    async fn system_session_destroy_ignores_unknown_sessions_and_removes_known_ones() {
+        let (_directory, database, signal, service) = decrypt_service_fixture().await;
+        let sessions = &database.participant_session_dao;
+        sessions
+            .insert_session("conversation", "me", "phone", 1)
+            .await
+            .unwrap();
+        signal
+            .session_dao
+            .save_session("me", 1, vec![1])
+            .await
+            .unwrap();
+
+        service
+            .process_system_message(&system_session("DESTROY", "unknown"))
+            .await
+            .unwrap();
+        assert!(signal.session_dao.has_session("me").await.unwrap());
+        assert!(sessions.has_user_session("me", "phone").await.unwrap());
+
+        service
+            .process_system_message(&system_session("DESTROY", "phone"))
+            .await
+            .unwrap();
+        assert!(!signal.session_dao.has_session("me").await.unwrap());
+        assert!(!sessions.has_user_session("me", "phone").await.unwrap());
     }
 
     #[tokio::test]

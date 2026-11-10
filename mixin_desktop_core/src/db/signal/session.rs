@@ -48,6 +48,14 @@ impl SessionDao {
         Ok(())
     }
 
+    pub async fn delete_sessions(&self, address: &str) -> Result<(), Error> {
+        let _ = crate::db::query("DELETE FROM sessions WHERE address = ?")
+            .bind(address)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_session(&self, address: &str, device: u32) -> Result<(), Error> {
         let _ = crate::db::query("DELETE FROM sessions WHERE address = ? AND device = ?")
             .bind(address)

@@ -298,6 +298,19 @@ pub struct SystemUserMessage {
     pub user_id: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemSessionMessage {
+    pub action: String,
+    pub user_id: String,
+    pub session_id: String,
+    pub public_key: Option<String>,
+}
+
+pub mod system_session_action {
+    pub const PROVISION: &str = "PROVISION";
+    pub const DESTROY: &str = "DESTROY";
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemCircleAction {
