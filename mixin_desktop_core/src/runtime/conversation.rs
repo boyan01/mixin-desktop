@@ -1165,11 +1165,7 @@ impl ConversationAccess {
                 name: None,
                 icon_base64: None,
                 announcement: None,
-                participants: (category == ConversationCategory::Contact).then(|| {
-                    vec![ParticipantRequest {
-                        user_id: self.account_id.clone(),
-                    }]
-                }),
+                participants: mute_participants(&category, owner_id),
                 duration: Some(duration_seconds),
             })
             .await?;
@@ -1286,12 +1282,37 @@ impl ConversationAccess {
     }
 }
 
+/// A direct conversation is muted by naming the other person.
+fn mute_participants(
+    category: &ConversationCategory,
+    owner_id: &str,
+) -> Option<Vec<ParticipantRequest>> {
+    (*category == ConversationCategory::Contact).then(|| {
+        vec![ParticipantRequest {
+            user_id: owner_id.to_string(),
+        }]
+    })
+}
+
 /// Both mobile clients dismiss an admin by sending an empty role.
 fn participant_update_role(action: &str, role: Option<String>) -> Option<String> {
     if action == "ROLE" {
         Some(role.unwrap_or_default())
     } else {
         role
+    }
+}
+
+#[cfg(test)]
+mod mute_tests {
+    use super::{mute_participants, ConversationCategory};
+
+    #[test]
+    fn direct_mute_names_the_other_person_and_group_mute_names_nobody() {
+        let direct = mute_participants(&ConversationCategory::Contact, "peer").unwrap();
+        assert_eq!(direct.len(), 1);
+        assert_eq!(direct[0].user_id, "peer");
+        assert!(mute_participants(&ConversationCategory::Group, "owner").is_none());
     }
 }
 
