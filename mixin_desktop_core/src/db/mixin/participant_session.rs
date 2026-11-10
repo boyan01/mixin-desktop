@@ -170,6 +170,45 @@ WHERE participant.user_id = ?1
         Ok(())
     }
 
+    pub async fn has_resend_request(
+        &self,
+        uid: &str,
+        sid: &str,
+        message_id: &str,
+    ) -> Result<bool, Error> {
+        Ok(crate::db::query_scalar::<bool>(
+            "SELECT EXISTS(SELECT 1 FROM resend_session_messages \
+             WHERE user_id = ? AND session_id = ? AND message_id = ?)",
+        )
+        .bind(uid)
+        .bind(sid)
+        .bind(message_id)
+        .fetch_one(&self.0)
+        .await?)
+    }
+
+    /// `status` is 1 when the message was resent and 0 when it cannot be.
+    pub async fn insert_resend_request(
+        &self,
+        uid: &str,
+        sid: &str,
+        message_id: &str,
+        status: i32,
+    ) -> Result<(), Error> {
+        let _ = crate::db::query(
+            "INSERT OR REPLACE INTO resend_session_messages \
+             (message_id, user_id, session_id, status, created_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(message_id)
+        .bind(uid)
+        .bind(sid)
+        .bind(status)
+        .bind(Utc::now().timestamp_millis())
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
     pub async fn insert_session(
         &self,
         cid: &str,

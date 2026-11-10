@@ -1101,31 +1101,44 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         plain_json_message: PlainJsonMessage,
     ) -> Result<()> {
-        let messages = plain_json_message
-            .messages
-            .ok_or_else(|| anyhow!("no messages"))?;
-
-        let p = self
+        let Some(messages) = plain_json_message.messages else {
+            return Ok(());
+        };
+        let Some(participant) = self
             .database
             .participant_dao
             .find_participant_by_id(&data.conversation_id, &data.user_id)
             .await?
-            .ok_or_else(|| anyhow!("no participant"))?;
+        else {
+            return Ok(());
+        };
+        let resends = &self.database.participant_session_dao;
 
         for message_id in messages {
+            if resends
+                .has_resend_request(&data.user_id, &data.session_id, &message_id)
+                .await?
+            {
+                continue;
+            }
             info!("resend message: {}", message_id);
-            let Some(message) = self
+            let message = self
                 .database
                 .message_dao
                 .find_message_by_id(&message_id)
                 .await?
-            else {
+                .filter(|message| {
+                    message.user_id == self.user_id
+                        && message.category != message_category::MESSAGE_RECALL
+                });
+            let Some(message) = message else {
+                resends
+                    .insert_resend_request(&data.user_id, &data.session_id, &message_id, 0)
+                    .await?;
                 continue;
             };
-            if message.user_id != self.user_id
-                || !message.category.is_signal()
-                || message.category == message_category::MESSAGE_RECALL
-                || p.created_at.naive_utc() > message.created_at
+            if !message.category.is_signal()
+                || participant.created_at.naive_utc() > message.created_at
             {
                 continue;
             }
@@ -1140,6 +1153,9 @@ impl ServiceDecryptMessage {
                     false,
                     data.expire_in.unwrap_or_default(),
                 ))
+                .await?;
+            resends
+                .insert_resend_request(&data.user_id, &data.session_id, &message_id, 1)
                 .await?;
         }
         Ok(())
@@ -2225,6 +2241,68 @@ mod tests {
             .unwrap();
         assert!(!signal.session_dao.has_session("me").await.unwrap());
         assert!(!sessions.has_user_session("me", "phone").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn repeated_resend_request_from_a_session_queues_one_send() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        let now = chrono::Utc::now();
+        database
+            .participant_dao
+            .insert_participant(&Participant {
+                conversation_id: "conversation".into(),
+                user_id: "peer".into(),
+                role: None,
+                created_at: now - chrono::Duration::hours(1),
+            })
+            .await
+            .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "mine".into(),
+                conversation_id: "conversation".into(),
+                user_id: "me".into(),
+                category: "SIGNAL_TEXT".into(),
+                content: Some("hello".into()),
+                status: MessageStatus::Sent,
+                created_at: now.naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        let pool = &database.job_dao.0;
+        let payload = serde_json::json!({
+            "action": RESEND_MESSAGES, "messages": ["mine", "absent"]
+        })
+        .to_string();
+        let request = blaze_data("PLAIN_JSON", &Base64::encode_string(payload.as_bytes()));
+
+        service.process_plain_message(&request).await.unwrap();
+        let queued = crate::db::query_scalar::<i64>("SELECT COUNT(*) FROM jobs")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        // The job id repeats per message and session, so only a finished job
+        // can show whether the second request was ignored.
+        crate::db::query("DELETE FROM jobs")
+            .execute(pool)
+            .await
+            .unwrap();
+        let mut repeated = blaze_data("PLAIN_JSON", &Base64::encode_string(payload.as_bytes()));
+        repeated.message_id = "event-2".into();
+        service.process_plain_message(&repeated).await.unwrap();
+        let requeued = crate::db::query_scalar::<i64>("SELECT COUNT(*) FROM jobs")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+
+        assert_eq!((queued, requeued), (1, 0));
+        let resends = &database.participant_session_dao;
+        assert!(resends
+            .has_resend_request("peer", PEER_SESSION, "absent")
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
