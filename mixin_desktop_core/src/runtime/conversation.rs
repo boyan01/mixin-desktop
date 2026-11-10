@@ -817,6 +817,7 @@ impl ConversationAccess {
         user_ids: Vec<String>,
         role: Option<String>,
     ) -> Result<(), crate::error::CoreError> {
+        let role = participant_update_role(&action, role);
         let role = role.as_deref();
         let conversation_id = conversation_id.as_str();
         let action = action.as_str();
@@ -1282,6 +1283,30 @@ impl ConversationAccess {
         }
         self.notify_conversation_changed(conversation_id);
         Ok(())
+    }
+}
+
+/// Both mobile clients dismiss an admin by sending an empty role.
+fn participant_update_role(action: &str, role: Option<String>) -> Option<String> {
+    if action == "ROLE" {
+        Some(role.unwrap_or_default())
+    } else {
+        role
+    }
+}
+
+#[cfg(test)]
+mod participant_role_tests {
+    use super::participant_update_role;
+
+    #[test]
+    fn dismissing_an_admin_sends_an_empty_role_and_other_actions_are_unchanged() {
+        assert_eq!(participant_update_role("ROLE", None).as_deref(), Some(""));
+        assert_eq!(
+            participant_update_role("ROLE", Some("ADMIN".into())).as_deref(),
+            Some("ADMIN")
+        );
+        assert_eq!(participant_update_role("ADD", None), None);
     }
 }
 
