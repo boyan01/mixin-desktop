@@ -1207,6 +1207,18 @@ impl ServiceDecryptMessage {
         let content = decode(&data.data)?;
 
         let app_card: sdk::AppCard = serde_json::from_str(&content)?;
+        self.database
+            .message_mention_dao
+            .parse_and_save_mention_data(
+                &data.message_id,
+                &data.conversation_id,
+                app_card.description.as_str(),
+                data.sender_id(),
+                None,
+                self.user_id.as_str(),
+                self.identity_number.as_str(),
+            )
+            .await?;
         let app = self
             .database
             .app_dao
@@ -2389,6 +2401,42 @@ mod tests {
             .is_message_exits(&"system-event".to_owned())
             .await
             .unwrap());
+    }
+
+    #[tokio::test]
+    async fn app_card_description_mentioning_this_account_creates_a_mention() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        crate::db::query(
+            "INSERT INTO users (user_id, identity_number, full_name, avatar_url, phone, \
+             is_verified, created_at, mute_until, has_pin, biography, is_scam, code_url, \
+             code_id, is_deactivated) \
+             VALUES ('peer', '7000', '', '', '', 0, 0, 0, 0, '', 0, '', '', 0)",
+        )
+        .execute(&database.user_dao.0)
+        .await
+        .unwrap();
+        let card = |description: &str| {
+            let payload = serde_json::json!({
+                "app_id": "app", "title": "title", "description": description
+            })
+            .to_string();
+            blaze_data("APP_CARD", &Base64::encode_string(payload.as_bytes()))
+        };
+        let mut unrelated = card("no mention here");
+        unrelated.message_id = "unrelated".into();
+
+        service
+            .process_app_card(&card("hello @1 please look"))
+            .await
+            .unwrap();
+        service.process_app_card(&unrelated).await.unwrap();
+
+        let mentioned =
+            crate::db::query_scalar::<String>("SELECT message_id FROM message_mentions")
+                .fetch_all(&database.user_dao.0)
+                .await
+                .unwrap();
+        assert_eq!(mentioned, ["event"]);
     }
 
     #[tokio::test]
