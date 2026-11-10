@@ -40,7 +40,7 @@ pub async fn apply(path: String, edits: Vec<ImageEdit>) -> MediaResult<PreparedA
                 .into_owned()
         })
         .unwrap_or_else(|| "image.png".into());
-    let temporary = tokio::task::spawn_blocking(move || render(Path::new(&path), &edits))
+    let temporary = crate::blocking(move || render(Path::new(&path), &edits))
         .await
         .map_err(|error| invalid(error.to_string()))??;
     let mut prepared =

@@ -149,7 +149,10 @@ impl Handle {
             self.revision.update(|revision| *revision += 1);
         }
     }
-    fn command(self, future: impl Future<Output = ClientResult<()>> + Send + 'static) {
+    fn command(
+        self,
+        future: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         if self.busy.get_untracked() {
             return;
         }

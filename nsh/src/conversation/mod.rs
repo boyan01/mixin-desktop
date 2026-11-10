@@ -163,7 +163,7 @@ impl State {
     /// popup or list cell, can end first and would leave `busy` set for good.
     fn submit(
         self,
-        command: impl Future<Output = ClientResult<()>> + Send + 'static,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
         done: impl FnOnce() + 'static,
     ) {
         if self.busy.get_untracked() {
@@ -189,7 +189,7 @@ impl State {
 
     fn confirm_then<F>(self, prompt: Prompt, command: impl FnOnce() -> F + 'static)
     where
-        F: Future<Output = ClientResult<()>> + Send + 'static,
+        F: Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
     {
         self.confirm_then_finish(prompt, command, || {});
     }
@@ -200,7 +200,7 @@ impl State {
         command: impl FnOnce() -> F + 'static,
         done: impl FnOnce() + 'static,
     ) where
-        F: Future<Output = ClientResult<()>> + Send + 'static,
+        F: Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
     {
         self.owner.run(|| {
             spawn(async move {
@@ -401,7 +401,7 @@ pub(crate) fn preview_page(
                 vec![SharedAppItem {
                     app_id: "c2e84b19-0a6f-47d3-b5c1-7e39f2d8a540".into(),
                     name: "Mixin Tools".into(),
-                    icon_url: concat!(env!("CARGO_MANIFEST_DIR"), "/assets/logo.png").into(),
+                    icon_url: fixture_image!("assets/logo.png", "image/png"),
                     description: String::new(),
                     home_uri: String::new(),
                 }]

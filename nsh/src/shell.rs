@@ -201,13 +201,13 @@ impl Handle {
         #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
         self.reference.command("show", serde_json::Value::Null);
         #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-        nsh_core::element::desktop::order_front();
+        nsh_core::element::desktop::main_window().show();
     }
     fn hide(self) {
         #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
         self.reference.command("hide", serde_json::Value::Null);
         #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
-        nsh_core::element::desktop::close_window();
+        nsh_core::element::desktop::main_window().hide();
     }
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     fn quit(self) {

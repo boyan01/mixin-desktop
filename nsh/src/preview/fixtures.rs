@@ -103,8 +103,6 @@ pub(super) mod messages {
     const CONVERSATION_ID: &str = "5d0c3b8e-91a4-4f27-b6e2-8c1f4a7d2e90";
     /// 2026-11-02 09:00 UTC: a fixed day, so captures do not move with the clock.
     const START_MICROS: i64 = 1_793_610_000_000_000;
-    const PHOTO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg");
-    const STICKER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/logo.png");
     /// A small file that exists, for attachments shown as downloaded.
     const FILE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/preview/nsh.json");
     /// BlurHash placeholders, as a message carries before its media downloads.
@@ -263,7 +261,7 @@ pub(super) mod messages {
         row.media_size = Some(18_143);
         row.thumb_image = Some(BLUR_SKY.into());
         if downloaded {
-            row.media_url = Some(PHOTO.into());
+            row.media_url = Some(fixture_image!("preview/fixtures/photo.jpg", "image/jpeg"));
             row.media_status = "DONE".into();
         } else {
             row.media_status = "CANCELED".into();
@@ -328,7 +326,7 @@ pub(super) mod messages {
     fn sticker(sender: (&str, &str)) -> MessageListView {
         let mut row = row(sender, "SIGNAL_STICKER", "");
         row.sticker_id = Some("2c9e6a4f-8b1d-4e37-9a05-71d3c8f0b6e2".into());
-        row.sticker_asset_url = Some(STICKER.into());
+        row.sticker_asset_url = Some(fixture_image!("assets/logo.png", "image/png"));
         row.sticker_asset_type = Some("PNG".into());
         row.sticker_asset_width = Some(192);
         row.sticker_asset_height = Some(192);
@@ -511,7 +509,7 @@ pub(super) mod messages {
                 "APP_CARD",
                 json!({
                     "app_id": PEOPLE[3].0,
-                    "icon_url": STICKER,
+                    "icon_url": fixture_image!("assets/logo.png", "image/png"),
                     "title": "Mixin Wallet",
                     "description": "Send, receive and swap assets",
                     "action": "https://mixin.one",
@@ -523,7 +521,7 @@ pub(super) mod messages {
                     "app_id": PEOPLE[3].0,
                     "title": "每周报告已生成",
                     "description": "本周共有 12 条新消息，3 个待办事项需要处理。",
-                    "cover": {"url": PHOTO, "width": 1800, "height": 600},
+                    "cover": {"url": fixture_image!("preview/fixtures/photo.jpg", "image/jpeg"), "width": 1800, "height": 600},
                     "actions": [
                         {"label": "查看", "color": "#3D75E3", "action": "https://mixin.one"},
                         {"label": "稍后", "color": "#7B7B7B", "action": "input:later"},
@@ -570,7 +568,8 @@ pub(super) mod messages {
         inscription.inscription_name = Some("Mixin Pass".into());
         inscription.inscription_sequence = Some(1024);
         inscription.inscription_content_type = Some("image/jpeg".into());
-        inscription.inscription_content_url = Some(PHOTO.into());
+        inscription.inscription_content_url =
+            Some(fixture_image!("preview/fixtures/photo.jpg", "image/jpeg"));
         timeline(vec![transfer, safe, inscription])
     }
 
@@ -749,15 +748,11 @@ pub(super) fn sticker_albums() -> Vec<mixin_desktop_api::StickerAlbumItem> {
 }
 
 pub(super) fn sticker_image(index: usize) -> String {
-    format!(
-        "{}/assets/{}",
-        env!("CARGO_MANIFEST_DIR"),
-        [
-            "logo.png",
-            "badges/plan_basic.png",
-            "badges/plan_standard.png"
-        ][index % 3]
-    )
+    match index % 3 {
+        0 => fixture_image!("assets/logo.png", "image/png"),
+        1 => fixture_image!("assets/badges/plan_basic.png", "image/png"),
+        _ => fixture_image!("assets/badges/plan_standard.png", "image/png"),
+    }
 }
 
 pub(super) fn sticker_store_albums() -> Vec<mixin_desktop_api::StickerAlbumItem> {
@@ -850,7 +845,7 @@ pub(super) fn participants() -> Vec<mixin_desktop_api::ConversationParticipantIt
 
 pub(super) fn photo_attachment() -> mixin_desktop_api::PreparedAttachment {
     let mut photo = mixin_desktop_api::PreparedAttachment::default();
-    photo.path = concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg").into();
+    photo.path = fixture_image!("preview/fixtures/photo.jpg", "image/jpeg");
     photo.name = "photo.jpg".into();
     photo.mime_type = "image/jpeg".into();
     photo.kind = "IMAGE".into();
@@ -864,8 +859,7 @@ pub(super) fn transfer_snapshot() -> mixin_desktop_api::SnapshotDetailItem {
     value.amount = "0.0393".into();
     value.symbol = "CNB".into();
     value.asset_name = "Chui Niu Bi".into();
-    value.asset_icon_url =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg").into();
+    value.asset_icon_url = fixture_image!("preview/fixtures/photo.jpg", "image/jpeg");
     value.chain_icon_url = value.asset_icon_url.clone();
     value.transaction_hash =
         Some("a6c794719270034208fd4631540bd4be197ceaf5b5e369a1b944fb12d516d6cd".into());

@@ -140,7 +140,10 @@ impl Actions {
     }
 
     /// Reports a committed command's outcome, which outlives this surface.
-    pub fn commit(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+    pub fn commit(
+        self,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         let command = runtime::commit(command);
         self.task(async move {
             self.finish(command.await.is_ok());
@@ -150,7 +153,7 @@ impl Actions {
     /// As [`Self::commit`], confirming success with a notice.
     pub fn commit_with(
         self,
-        command: impl Future<Output = ClientResult<()>> + Send + 'static,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
         done: &'static str,
     ) {
         let command = runtime::commit(command);
@@ -172,7 +175,10 @@ impl Actions {
     }
 
     /// As [`Self::commit`], for commands that exclude each other.
-    fn commit_exclusive(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+    fn commit_exclusive(
+        self,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         if self.busy.get_untracked() {
             return;
         }

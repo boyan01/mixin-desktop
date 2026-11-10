@@ -95,7 +95,7 @@ pub fn encode_voice(samples: &[i16]) -> MediaResult<Vec<u8>> {
     let final_granule = u64::from(pre_skip_48k)
         + samples.len() as u64 * u64::from(PLAYBACK_SAMPLE_RATE) / u64::from(VOICE_SAMPLE_RATE);
 
-    for (index, frame) in input.chunks_exact(FRAME_SAMPLES).enumerate() {
+    for (index, frame) in input.as_chunks::<FRAME_SAMPLES>().0.iter().enumerate() {
         let mut packet = vec![0_u8; MAX_PACKET_BYTES];
         let packet_size = unsafe {
             opus_encode(

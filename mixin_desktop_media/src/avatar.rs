@@ -16,7 +16,7 @@ const SOURCE_BYTES: u64 = 10 * 1024 * 1024;
 const PREPARED_BYTES: u64 = 128 * 1024 * 1024;
 
 pub async fn prepare(path: String) -> MediaResult<PreparedAttachment> {
-    tokio::task::spawn_blocking(move || {
+    crate::blocking(move || {
         let decoded = decode(Path::new(&path), SOURCE_BYTES)?;
         let temporary = tempfile::Builder::new()
             .prefix("mixin-avatar-")
@@ -45,7 +45,7 @@ pub async fn encode(
     crop: ImageEdit,
     group: bool,
 ) -> MediaResult<String> {
-    tokio::task::spawn_blocking(move || {
+    crate::blocking(move || {
         // Keep the lease alive until decoding and export have completed.
         let decoded = decode(Path::new(&source.path), PREPARED_BYTES)?;
         let ImageEdit::Crop {

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "preview-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["nsh/tool/preview_web.py"],
+      "port": 8796
+    }
+  ]
+}

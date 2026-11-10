@@ -22,6 +22,8 @@ pub enum MediaError {
     TimeStretch(String),
     #[error("Opus codec failed with code {0}")]
     Opus(i32),
+    #[error("{0} is not supported on this platform")]
+    Unsupported(&'static str),
     #[error("media I/O failed: {0}")]
     Io(#[from] std::io::Error),
 }

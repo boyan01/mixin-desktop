@@ -54,6 +54,15 @@ paths in the PR body.
 5. Keep a scene with actions still once settled: put spinners and looping animations
    in a scene without actions (as `loading`). A capture fails when its end keeps moving.
 
+## Browser iteration
+
+`python3 nsh/tool/preview_web.py` serves the same scenes in a browser (port 8796 or
+`$PORT`; `.claude/launch.json` names it `preview-web`). Switch scenes with the
+`Next scene` / `Previous scene` buttons and run actions with `Play action`; NSH
+buttons react to pointer events, so use real clicks rather than `element.click()`.
+Use it for fast layout, copy and interaction checks. Hand-off images still come
+from the native `capture`/`compare` steps above, since browser text and scrolling differ.
+
 ## Limits
 
 - `capture.txt` times frames from issuing the press and labels each `start`, `moving`

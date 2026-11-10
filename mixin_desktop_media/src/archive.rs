@@ -12,7 +12,7 @@ pub async fn prepare(
     items: Vec<PreparedAttachment>,
     password: Option<String>,
 ) -> MediaResult<PreparedAttachment> {
-    tokio::task::spawn_blocking(move || create(items, password.as_deref()))
+    crate::blocking(move || create(items, password.as_deref()))
         .await
         .map_err(|error| MediaError::InvalidAttachment(error.to_string()))?
 }

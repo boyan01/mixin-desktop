@@ -1,10 +1,13 @@
 use std::future::Future;
 
+#[cfg(not(target_arch = "wasm32"))]
 use async_stream::stream;
 use futures::Stream;
+#[cfg(not(target_arch = "wasm32"))]
+use mixin_desktop_media::AudioPlaybackStatus;
 use mixin_desktop_media::{
-    AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus, AudioPlayer,
-    VoiceRecorder, VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecording,
+    AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlayer, VoiceRecorder,
+    VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecording,
 };
 
 use crate::{ClientError, ClientResult};
@@ -122,7 +125,7 @@ impl MediaClient {
     pub async fn start_voice_session(&self) -> ClientResult<u64> {
         let recorder = self.recorder.clone();
         Ok(
-            tokio::task::spawn_blocking(move || recorder.start_session())
+            mixin_desktop_media::blocking(move || recorder.start_session())
                 .await
                 .map_err(join_error)??,
         )
@@ -131,7 +134,7 @@ impl MediaClient {
     pub async fn stop_voice_session(&self, session_id: u64) -> ClientResult<VoiceRecording> {
         let recorder = self.recorder.clone();
         Ok(
-            tokio::task::spawn_blocking(move || recorder.stop_session(session_id))
+            mixin_desktop_media::blocking(move || recorder.stop_session(session_id))
                 .await
                 .map_err(join_error)??,
         )
@@ -140,7 +143,7 @@ impl MediaClient {
     pub async fn cancel_voice_session(&self, session_id: u64) -> ClientResult<()> {
         let recorder = self.recorder.clone();
         Ok(
-            tokio::task::spawn_blocking(move || recorder.cancel_session(session_id))
+            mixin_desktop_media::blocking(move || recorder.cancel_session(session_id))
                 .await
                 .map_err(join_error)??,
         )
@@ -148,7 +151,7 @@ impl MediaClient {
 
     pub async fn start_voice_recording(&self) -> ClientResult<()> {
         let recorder = self.recorder.clone();
-        tokio::task::spawn_blocking(move || recorder.start())
+        mixin_desktop_media::blocking(move || recorder.start())
             .await
             .map_err(join_error)??;
         Ok(())
@@ -156,14 +159,14 @@ impl MediaClient {
 
     pub async fn stop_voice_recording(&self) -> ClientResult<VoiceRecording> {
         let recorder = self.recorder.clone();
-        Ok(tokio::task::spawn_blocking(move || recorder.stop())
+        Ok(mixin_desktop_media::blocking(move || recorder.stop())
             .await
             .map_err(join_error)??)
     }
 
     pub async fn cancel_voice_recording(&self) -> ClientResult<()> {
         let recorder = self.recorder.clone();
-        tokio::task::spawn_blocking(move || recorder.cancel())
+        mixin_desktop_media::blocking(move || recorder.cancel())
             .await
             .map_err(join_error)??;
         Ok(())
@@ -173,6 +176,17 @@ impl MediaClient {
         self.recorder.snapshot()
     }
 
+    /// The browser has no recorder that can change, so only its snapshot is sent.
+    #[cfg(target_arch = "wasm32")]
+    pub fn subscribe_voice_recorder(
+        &self,
+    ) -> impl Stream<Item = VoiceRecorderEvent> + Send + 'static {
+        futures::stream::once(std::future::ready(VoiceRecorderEvent::Changed(
+            self.recorder.snapshot(),
+        )))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn subscribe_voice_recorder(
         &self,
     ) -> impl Stream<Item = VoiceRecorderEvent> + Send + 'static {
@@ -235,7 +249,7 @@ impl MediaClient {
 
     pub async fn pause_audio(&self) -> ClientResult<()> {
         let player = self.player.clone();
-        tokio::task::spawn_blocking(move || player.pause())
+        mixin_desktop_media::blocking(move || player.pause())
             .await
             .map_err(join_error)??;
         Ok(())
@@ -243,7 +257,7 @@ impl MediaClient {
 
     pub async fn resume_audio(&self) -> ClientResult<()> {
         let player = self.player.clone();
-        tokio::task::spawn_blocking(move || player.resume())
+        mixin_desktop_media::blocking(move || player.resume())
             .await
             .map_err(join_error)??;
         Ok(())
@@ -255,7 +269,7 @@ impl MediaClient {
 
     pub async fn set_audio_speed(&self, speed: f64) -> ClientResult<()> {
         let player = self.player.clone();
-        tokio::task::spawn_blocking(move || player.set_speed(speed))
+        mixin_desktop_media::blocking(move || player.set_speed(speed))
             .await
             .map_err(join_error)??;
         Ok(())
@@ -270,6 +284,15 @@ impl MediaClient {
         self.player.snapshot()
     }
 
+    /// The browser has no player that can change, so there is nothing to send.
+    #[cfg(target_arch = "wasm32")]
+    pub fn subscribe_audio_playback(
+        &self,
+    ) -> impl Stream<Item = AudioPlaybackEvent> + Send + 'static {
+        futures::stream::pending()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn subscribe_audio_playback(
         &self,
     ) -> impl Stream<Item = AudioPlaybackEvent> + Send + 'static {
@@ -310,7 +333,7 @@ impl MediaClient {
     }
 }
 
-fn join_error(error: tokio::task::JoinError) -> ClientError {
+fn join_error(error: impl std::fmt::Display) -> ClientError {
     ClientError::Internal(format!("media worker failed: {error}"))
 }
 

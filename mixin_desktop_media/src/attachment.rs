@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_arch = "wasm32")))]
 use std::{process::Stdio, time::Duration};
 use tempfile::TempPath;
 
@@ -45,10 +45,9 @@ impl PreparedAttachment {
 }
 
 pub async fn prepare(path: String, media: bool, compress: bool) -> MediaResult<PreparedAttachment> {
-    let mut item =
-        tokio::task::spawn_blocking(move || prepare_file(Path::new(&path), media, compress))
-            .await
-            .map_err(|error| MediaError::InvalidAttachment(error.to_string()))??;
+    let mut item = crate::blocking(move || prepare_file(Path::new(&path), media, compress))
+        .await
+        .map_err(|error| MediaError::InvalidAttachment(error.to_string()))??;
     if media && item.mime_type.starts_with("video/") {
         let info = probe_video(&item.path).await?;
         item.kind = "VIDEO".into();
@@ -72,7 +71,7 @@ pub async fn prepare_clipboard_file(
             "The pasted file must be nonempty and no larger than 48 MiB".into(),
         ));
     }
-    let source = tokio::task::spawn_blocking(move || {
+    let source = crate::blocking(move || {
         let name = name.rsplit(['/', '\\']).next().unwrap_or_default();
         let name = if name.is_empty() || matches!(name, "." | "..") {
             "clipboard"
@@ -124,7 +123,7 @@ pub async fn prepare_clipboard_image(
     media: bool,
     compress: bool,
 ) -> MediaResult<PreparedAttachment> {
-    tokio::task::spawn_blocking(move || {
+    crate::blocking(move || {
         use base64::{engine::general_purpose::STANDARD, Engine as _};
         const MAX_BYTES: usize = 48 * 1024 * 1024;
         let invalid = || {
@@ -277,7 +276,12 @@ async fn probe_video(path: &str) -> MediaResult<VideoInfo> {
     video_macos::probe(path).await
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_arch = "wasm32")]
+async fn probe_video(_path: &str) -> MediaResult<VideoInfo> {
+    Err(MediaError::Unsupported("video metadata reading"))
+}
+
+#[cfg(not(any(target_os = "macos", target_arch = "wasm32")))]
 async fn probe_video(path: &str) -> MediaResult<VideoInfo> {
     // Packaged desktop apps cannot rely on their working directory or PATH
     // containing the probe shipped alongside the executable.
@@ -314,7 +318,7 @@ async fn probe_video(path: &str) -> MediaResult<VideoInfo> {
     })
 }
 
-#[cfg(any(not(target_os = "macos"), test))]
+#[cfg(any(not(any(target_os = "macos", target_arch = "wasm32")), test))]
 fn parse_video_info(bytes: &[u8]) -> MediaResult<(i32, i32, i64)> {
     let invalid =
         || MediaError::InvalidAttachment("Video dimensions or duration are invalid".into());

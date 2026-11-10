@@ -137,7 +137,7 @@ pub(super) fn encrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>>
     padded.extend_from_slice(data);
     padded.resize(data.len() + padding, padding as u8);
     let mut previous: [u8; 16] = iv.try_into().map_err(|_| anyhow!("invalid AES IV"))?;
-    for chunk in padded.chunks_exact_mut(16) {
+    for chunk in padded.as_chunks_mut::<16>().0 {
         for (byte, previous) in chunk.iter_mut().zip(previous) {
             *byte ^= previous;
         }
@@ -158,8 +158,8 @@ pub(super) fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>>
     let cipher = Aes256::new_from_slice(key).map_err(|_| anyhow!("invalid AES key"))?;
     let mut output = data.to_vec();
     let mut previous: [u8; 16] = iv.try_into().map_err(|_| anyhow!("invalid AES IV"))?;
-    for chunk in output.chunks_exact_mut(16) {
-        let encrypted: [u8; 16] = chunk.try_into().expect("AES block length");
+    for chunk in output.as_chunks_mut::<16>().0 {
+        let encrypted = *chunk;
         let mut bytes = [0u8; 16];
         bytes.copy_from_slice(chunk);
         let mut block = Block::<Aes256>::from(bytes);
@@ -184,7 +184,7 @@ pub(super) fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>>
 }
 
 fn encrypt_blocks(cipher: &Aes256, previous: &mut [u8; 16], data: &mut [u8]) {
-    for chunk in data.chunks_exact_mut(16) {
+    for chunk in data.as_chunks_mut::<16>().0 {
         let mut block = Block::<Aes256>::default();
         for ((target, byte), prior) in block.iter_mut().zip(chunk.iter()).zip(*previous) {
             *target = *byte ^ prior;
@@ -196,8 +196,8 @@ fn encrypt_blocks(cipher: &Aes256, previous: &mut [u8; 16], data: &mut [u8]) {
 }
 
 fn decrypt_blocks(cipher: &Aes256, previous: &mut [u8; 16], data: &mut [u8]) {
-    for chunk in data.chunks_exact_mut(16) {
-        let encrypted: [u8; 16] = chunk.try_into().expect("AES block length");
+    for chunk in data.as_chunks_mut::<16>().0 {
+        let encrypted = *chunk;
         let mut block = Block::<Aes256>::from(encrypted);
         cipher.decrypt_block(&mut block);
         for (byte, prior) in block.iter_mut().zip(*previous) {

@@ -19,48 +19,9 @@ const WAVEFORM_SAMPLES: usize = 100;
 mod progress;
 use progress::{CaptureProgress, ProgressWriter};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum VoiceRecorderStatus {
-    Idle,
-    Recording,
-    Recorded,
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-#[non_exhaustive]
-pub struct VoiceRecording {
-    pub session_id: u64,
-    _file: Option<Arc<RecordedFile>>,
-    pub path: String,
-    pub duration_millis: u64,
-    pub waveform: Vec<u8>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct RecordedFile(PathBuf);
-
-impl Drop for RecordedFile {
-    fn drop(&mut self) {
-        let _ = remove_file_if_present(&self.0);
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VoiceRecorderSnapshot {
-    pub session_id: Option<u64>,
-    pub status: VoiceRecorderStatus,
-    pub recording: Option<VoiceRecording>,
-    /// Captured PCM duration while recording; final encoded duration in preview.
-    pub duration_millis: u64,
-    /// Bounded recent capture peaks while recording; final protocol waveform in preview.
-    pub waveform: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum VoiceRecorderEvent {
-    Changed(VoiceRecorderSnapshot),
-    Failed(String),
-}
+mod state;
+use state::RecordedFile;
+pub use state::{VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus, VoiceRecording};
 
 #[derive(Clone)]
 pub struct VoiceRecorder {

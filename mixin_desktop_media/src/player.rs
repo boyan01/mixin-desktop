@@ -10,35 +10,10 @@ use tokio::sync::broadcast;
 use crate::codec::{decode_ogg_opus, DecodedAudio};
 use crate::{MediaError, MediaResult};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct AudioPlaybackItem {
-    pub id: String,
-    pub path: String,
-    pub duration_millis: u64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AudioPlaybackStatus {
-    Idle,
-    Playing,
-    Paused,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct AudioPlaybackSnapshot {
-    pub status: AudioPlaybackStatus,
-    pub item: Option<AudioPlaybackItem>,
-    pub position_millis: u64,
-    pub duration_millis: u64,
-    pub speed: f64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum AudioPlaybackEvent {
-    Changed(AudioPlaybackSnapshot),
-    Finished(String),
-    Failed { id: Option<String>, message: String },
-}
+mod state;
+pub use state::{
+    AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus,
+};
 
 #[derive(Clone)]
 pub struct AudioPlayer {
@@ -338,10 +313,9 @@ impl PlaybackRequest {
     fn new(inner: Arc<PlayerInner>) -> Self {
         let previous = inner
             .revision
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |revision| {
-                Some(revision.wrapping_add(2) | 1)
-            })
-            .expect("revision update always succeeds");
+            .update(Ordering::AcqRel, Ordering::Acquire, |revision| {
+                revision.wrapping_add(2) | 1
+            });
         Self {
             inner,
             revision: previous.wrapping_add(2) | 1,
@@ -428,10 +402,9 @@ fn ensure_open(inner: &PlayerInner) -> MediaResult<()> {
 fn invalidate(inner: &PlayerInner) {
     inner
         .revision
-        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |revision| {
-            Some(revision.wrapping_add(2) & !1)
-        })
-        .expect("revision update always succeeds");
+        .update(Ordering::AcqRel, Ordering::Acquire, |revision| {
+            revision.wrapping_add(2) & !1
+        });
 }
 
 fn is_pending(inner: &PlayerInner, revision: u64) -> bool {

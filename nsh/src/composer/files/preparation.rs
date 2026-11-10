@@ -174,7 +174,13 @@ fn file_path(uri: &str) -> Option<String> {
     Some(resolved.path()?.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+// Browser clipboard URIs do not name local files.
+#[cfg(target_arch = "wasm32")]
+fn file_path(_uri: &str) -> Option<String> {
+    None
+}
+
+#[cfg(not(any(target_os = "macos", target_arch = "wasm32")))]
 fn file_path(uri: &str) -> Option<String> {
     let path = url::Url::parse(uri).ok()?.to_file_path().ok()?;
     Some(path.to_string_lossy().into_owned())

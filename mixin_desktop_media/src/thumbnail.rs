@@ -31,7 +31,7 @@ pub async fn image(data: String) -> MediaResult<Option<String>> {
         }
     }
     let permit = WORKERS.acquire().await.map_err(invalid)?;
-    tokio::task::spawn_blocking(move || {
+    crate::blocking(move || {
         let _permit = permit;
         let result = decode(&data);
         let mut cache = CACHE

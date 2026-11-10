@@ -17,6 +17,11 @@ fn runtime() -> &'static Runtime {
     RUNTIME.get_or_init(|| Runtime::new().expect("create the business runtime"))
 }
 
+/// Business work crosses to the runtime's threads on the desktop. Browser
+/// builds have one thread, where the same UI code runs without this bound.
+pub(crate) trait MaybeSend: Send {}
+impl<T: Send> MaybeSend for T {}
+
 /// Logs a failure where the UI asked for the work: views turn errors into a
 /// state such as "failed", which alone would leave nothing to diagnose.
 fn logged<T>(

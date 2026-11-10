@@ -9,11 +9,9 @@ pub mod dto;
 pub mod error;
 mod logging;
 mod login;
-#[cfg(not(target_arch = "wasm32"))]
 mod media;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(target_arch = "wasm32", path = "screen_lock/web.rs")]
 mod screen_lock;
-#[cfg(not(target_arch = "wasm32"))]
 pub use screen_lock::ScreenLockClient;
 pub mod model;
 
@@ -32,9 +30,7 @@ pub use dto::{
 pub use error::{ClientError, ClientResult};
 pub use logging::{data_directory, init_logging, log_directory, write_log, LogLevel};
 pub use login::LoginClient;
-#[cfg(not(target_arch = "wasm32"))]
 pub use media::{MediaClient, StickerAnimationClient};
-#[cfg(not(target_arch = "wasm32"))]
 pub use mixin_desktop_media::{
     AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus, ImageEdit,
     PreparedAttachment, VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus,

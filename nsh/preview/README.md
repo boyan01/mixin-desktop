@@ -71,6 +71,26 @@ available in the native browser but is omitted from the catalog because it retur
 to the normal state. Captures are ignored by Git; a failed run preserves the
 previous completed gallery.
 
+## Browser preview
+
+The same scenes also build for the browser, so agents and browser tools can open,
+click and inspect them through the DOM and its accessibility labels:
+
+```sh
+python3 nsh/tool/preview_web.py            # http://localhost:8796/, or $PORT
+python3 nsh/tool/preview_web.py --port 8800
+```
+
+Rust edits rebuild and reload the page. Requirements: LLVM's `clang` and `llvm-ar`,
+the `wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI of the version in
+`Cargo.lock` (`cargo install wasm-bindgen-cli --version <version> --locked`).
+
+Use it to iterate on layout, copy and interaction. It does not replace native
+captures: browser fonts, text measurement, scrolling, menus and window behavior
+differ. Audio playback, recording, animated stickers and video metadata return
+`unsupported` in the browser, and local fixture images are embedded instead of read
+from disk.
+
 ## Scene ownership
 
 Paths are relative to `nsh/src/`. Fixtures reuse the production page/card builders.

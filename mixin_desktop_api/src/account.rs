@@ -34,7 +34,6 @@ impl AccountClient {
         Self { runtime, desktop }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn screen_lock(&self) -> crate::ScreenLockClient {
         crate::ScreenLockClient {
             runtime: self.runtime.clone(),
@@ -49,7 +48,6 @@ impl AccountClient {
         self.runtime.account_id().to_string()
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn sticker_animation(
         &self,
         url: String,
@@ -411,6 +409,42 @@ impl AccountClient {
             .device_transfer()
             .command(command.into())
             .await?)
+    }
+
+    // Browser builds cannot listen on or connect to local sockets.
+    #[cfg(target_arch = "wasm32")]
+    pub fn device_transfer_states(
+        &self,
+    ) -> impl Stream<Item = crate::DeviceTransferSnapshot> + Send + 'static {
+        futures::stream::empty()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn device_transfer_events(
+        &self,
+    ) -> impl Stream<Item = crate::DeviceTransferEvent> + Send + 'static {
+        futures::stream::empty()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn device_transfer_request_command(
+        &self,
+        _command: crate::DeviceTransferCommand,
+        _request_id: u64,
+    ) -> ClientResult<()> {
+        Err(crate::ClientError::Internal(
+            "device transfer is not supported in the browser".into(),
+        ))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub async fn device_transfer_command(
+        &self,
+        _command: crate::DeviceTransferCommand,
+    ) -> ClientResult<()> {
+        Err(crate::ClientError::Internal(
+            "device transfer is not supported in the browser".into(),
+        ))
     }
 
     pub fn connection_status(&self) -> impl Stream<Item = bool> + Send + 'static {

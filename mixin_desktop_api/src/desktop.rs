@@ -1,5 +1,6 @@
+use crate::MediaClient;
 #[cfg(not(target_arch = "wasm32"))]
-use crate::{McpServerStatusItem, McpSettingsItem, MediaClient};
+use crate::{McpServerStatusItem, McpSettingsItem};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -13,7 +14,6 @@ use crate::{AccountClient, ClientResult, HttpResponseItem, LoginClient, ProxySet
 #[derive(Clone)]
 pub struct DesktopClient {
     runtime: Arc<DesktopRuntime>,
-    #[cfg(not(target_arch = "wasm32"))]
     media: Arc<MediaClient>,
 }
 
@@ -23,7 +23,6 @@ pub struct SettingsClient {
 }
 
 static DESKTOP_RUNTIME: OnceCell<Arc<DesktopRuntime>> = OnceCell::const_new();
-#[cfg(not(target_arch = "wasm32"))]
 static MEDIA_CLIENT: std::sync::OnceLock<Arc<MediaClient>> = std::sync::OnceLock::new();
 
 impl DesktopClient {
@@ -41,7 +40,6 @@ impl DesktopClient {
             .await?;
         Ok(Self {
             runtime: runtime.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
             media: MEDIA_CLIENT
                 .get_or_init(|| Arc::new(MediaClient::new()))
                 .clone(),
@@ -67,7 +65,6 @@ impl DesktopClient {
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn media(&self) -> Arc<MediaClient> {
         self.media.clone()
     }

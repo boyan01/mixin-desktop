@@ -1,4 +1,27 @@
 //! Native Rust presentation over the platform-neutral Mixin client API.
+// Browser builds serve the preview scenes only; the bot browser and system
+// notification hosts have no web implementation, so their shared state is unused.
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
+
+/// A repository image for preview fixtures: its path on the desktop. The
+/// browser cannot read local files, so there the bytes are embedded instead.
+#[cfg(debug_assertions)]
+macro_rules! fixture_image {
+    ($path:literal, $mime:literal) => {{
+        #[cfg(not(target_arch = "wasm32"))]
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/", $path).to_string();
+        #[cfg(target_arch = "wasm32")]
+        let source = format!(
+            "data:{};base64,{}",
+            $mime,
+            base64::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path)),
+            )
+        );
+        source
+    }};
+}
 
 mod appearance;
 mod attachment_progress;
@@ -26,6 +49,7 @@ mod preview;
 pub use preview::Preview;
 mod qr;
 mod recipients;
+#[cfg_attr(target_arch = "wasm32", path = "runtime/web.rs")]
 pub mod runtime;
 mod search;
 mod security;

@@ -38,7 +38,10 @@ impl State {
         }
     }
 
-    fn execute(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+    fn execute(
+        self,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         if self.busy.get_untracked() {
             return;
         }

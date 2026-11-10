@@ -118,7 +118,7 @@ impl State {
     /// Runs one durable command at a time, then `done` with its success.
     fn run<T: Send + 'static>(
         self,
-        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+        work: impl Future<Output = ClientResult<T>> + crate::runtime::MaybeSend + 'static,
         done: impl FnOnce(bool) + 'static,
     ) {
         if self.busy.get_untracked() {
@@ -139,7 +139,7 @@ impl State {
     /// Changes sticker data and refreshes what the panel shows.
     pub(super) fn update<T: Send + 'static>(
         self,
-        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+        work: impl Future<Output = ClientResult<T>> + crate::runtime::MaybeSend + 'static,
     ) {
         self.run(work, move |_| self.reload());
     }
@@ -147,7 +147,7 @@ impl State {
     /// Sends a message from the panel, which closes once it is accepted.
     pub(super) fn send<T: Send + 'static>(
         self,
-        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+        work: impl Future<Output = ClientResult<T>> + crate::runtime::MaybeSend + 'static,
     ) {
         self.run(work, move |succeeded| {
             if succeeded {

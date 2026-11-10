@@ -20,6 +20,8 @@ command -v protoc >/dev/null || [[ -n "${PROTOC:-}" ]] || {
 }
 
 cargo check --locked -p mixin_desktop_api --target wasm32-unknown-unknown --lib
+# The browser preview (nsh/tool/preview_web.py) builds the whole UI crate.
+cargo check --locked -p mixin_desktop_ui --target wasm32-unknown-unknown --lib
 cargo build --locked -p mixin_desktop_core --example browser_contract \
   --features browser-tests --target wasm32-unknown-unknown
 wasm-bindgen "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/debug/examples/browser_contract.wasm" \

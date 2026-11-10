@@ -18,10 +18,16 @@ sha2 = "0.11"
 url = "2"
 regex = "1"
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
-tokio = { version = "1", features = ["rt-multi-thread", "signal", "sync", "time", "net", "io-util", "macros"] }
+tokio = { version = "1", features = ["sync", "time", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 unicode-segmentation = "1"
 emojis = "0.9.1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "signal", "net", "io-util"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nsh-platform-linux = { git = "https://github.com/longbridge/nsh", branch = "main", default-features = false }

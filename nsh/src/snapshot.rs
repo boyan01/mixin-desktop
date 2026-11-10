@@ -63,10 +63,12 @@ fn decode_memo(raw: &str) -> String {
     }
     let bytes = raw
         .as_bytes()
-        .chunks_exact(2)
-        .map(|pair| {
-            let hi = char::from(pair[0]).to_digit(16)?;
-            let lo = char::from(pair[1]).to_digit(16)?;
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&[hi, lo]| {
+            let hi = char::from(hi).to_digit(16)?;
+            let lo = char::from(lo).to_digit(16)?;
             Some(((hi << 4) | lo) as u8)
         })
         .collect::<Option<Vec<_>>>();
@@ -673,13 +675,12 @@ pub(crate) fn preview(detail: SnapshotDetailItem, state: Signal<&'static str>) -
         match state.get() {
             "Text" | "Long text" | "Content error" => {
                 value.inscription_content_type = Some("text/plain".into());
-                value.inscription_icon_url =
-                    Some(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/logo.png").into());
+                value.inscription_icon_url = Some(fixture_image!("assets/logo.png", "image/png"));
             }
             "Image" => {
                 value.inscription_content_type = Some("image/jpeg".into());
                 value.inscription_content_url =
-                    Some(concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg").into());
+                    Some(fixture_image!("preview/fixtures/photo.jpg", "image/jpeg"));
             }
             "Sent" => value.amount = "-0.0393".into(),
             "Pending" => {

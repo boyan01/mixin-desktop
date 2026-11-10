@@ -99,7 +99,10 @@ impl Circles {
         self.account.with(|account| account.clone())
     }
 
-    fn execute(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+    fn execute(
+        self,
+        command: impl Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         if self.busy.get_untracked() {
             return;
         }

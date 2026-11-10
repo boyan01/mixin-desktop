@@ -70,7 +70,10 @@ impl Playback {
     }
 
     /// Runs under the account owner: the bar that started it may unmount first.
-    fn command(self, work: impl std::future::Future<Output = ClientResult<()>> + Send + 'static) {
+    fn command(
+        self,
+        work: impl std::future::Future<Output = ClientResult<()>> + crate::runtime::MaybeSend + 'static,
+    ) {
         self.owner.run(move || {
             spawn(async move { self.failed.set(runtime::run(work).await.is_err()) });
         });
