@@ -933,6 +933,11 @@ async fn run_account(context: AccountRunContext) -> runner::Exit {
         std::future::pending::<()>()
     };
 
+    // Dropped with this account's runtime; a failure retries on the next start.
+    drop(crate::task::spawn(refresh_account_lists(
+        app_service.clone(),
+    )));
+
     tokio::select! {
         result = blaze.connect() => {
             if let Err(error) = result {
@@ -962,6 +967,12 @@ async fn run_account(context: AccountRunContext) -> runner::Exit {
         _ = shutdown_receiver.changed() => {}
     }
     runner::Exit::Stopped
+}
+
+async fn refresh_account_lists(app_service: Arc<AppService>) {
+    if let Err(error) = app_service.circle.refresh_circles_if_empty().await {
+        warn!("failed to refresh circles: {error}");
+    }
 }
 
 /// Services assembled by `prepare_account` and consumed by the account loop.
