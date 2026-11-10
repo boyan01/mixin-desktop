@@ -971,15 +971,22 @@ async fn events(
     let mut shutdown = runtime.subscribe_shutdown();
     let mut connection = runtime.subscribe_connection_status();
     let mut health = runtime.subscribe_account_health();
-    let mut row_id = match cursor {
-        Some(cursor) => cursor,
-        None => match runtime.latest_notification_row_id().await {
-            Ok(row_id) => row_id,
-            Err(error) => {
-                return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response()
-            }
-        },
+    let latest_row_id = match runtime.latest_notification_row_id().await {
+        Ok(row_id) => row_id,
+        Err(error) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response()
+        }
     };
+    // A cursor from before a database rebuild would deliver nothing until new
+    // rows caught up with it.
+    if cursor.is_some_and(|cursor| cursor > latest_row_id) {
+        return (
+            StatusCode::CONFLICT,
+            "cursor is past the newest message; reconnect without a cursor",
+        )
+            .into_response();
+    }
+    let mut row_id = cursor.unwrap_or(latest_row_id);
     let stream = async_stream::stream! {
         yield Ok::<_, std::convert::Infallible>(
             axum::response::sse::Event::default()

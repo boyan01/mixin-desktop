@@ -73,7 +73,9 @@ events after that cursor are replayed first, then new ones follow. Without a
 cursor, the stream starts at the newest message and only delivers new ones.
 The server keeps no delivery state.
 
-An invalid cursor returns `400`. A missing or wrong token returns `401`.
+An invalid cursor returns `400`. A missing or wrong token returns `401`. A
+cursor past the newest message, for example after the database was rebuilt,
+returns `409`; reconnect without a cursor.
 
 ### Event types
 

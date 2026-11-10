@@ -621,6 +621,31 @@ async fn event_stream_reports_current_status_then_each_health_change() {
 }
 
 #[tokio::test]
+async fn event_cursor_past_newest_message_is_rejected_so_a_rebuilt_store_is_not_silent() {
+    let fixture = Fixture::new().await;
+    let (endpoint, token) = fixture.start_mcp().await;
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+
+    let ahead = client
+        .get(format!("{endpoint}?cursor=1"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let current = client
+        .get(format!("{endpoint}?cursor=0"))
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(ahead.status(), reqwest::StatusCode::CONFLICT);
+    assert_eq!(current.status(), reqwest::StatusCode::OK);
+    drop(current);
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn shutting_down_old_account_does_not_stop_mcp_bound_to_its_replacement() {
     let old = Fixture::new().await;
     let replacement = Fixture::new().await;
