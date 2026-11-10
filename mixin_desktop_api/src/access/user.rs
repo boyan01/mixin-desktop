@@ -79,6 +79,10 @@ impl UserAccess {
             .await?)
     }
 
+    pub async fn blocked_users(&self) -> Result<Vec<model::UserProfileItem>, ClientError> {
+        Ok(self.inner.blocked_users().await?)
+    }
+
     pub async fn search_user(&self, query: String) -> Result<model::UserProfileItem, ClientError> {
         Ok(self.inner.search_user(query).await?)
     }

@@ -53,6 +53,21 @@ impl UserAccess {
             .collect())
     }
 
+    /// The server's current blocked list, also stored so relationship state
+    /// stays correct on the rows that show these users.
+    pub async fn blocked_users(&self) -> Result<Vec<model::UserProfileItem>> {
+        self.ensure_active()?;
+        let users = self.client.user_api.blocking_users().await?;
+        Ok(self
+            .database
+            .user_dao
+            .insert_sdk_users(users)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     /// Loads contacts and bots eligible for selection, including an empty query.
     pub async fn selectable_users_page(
         &self,

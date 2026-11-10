@@ -149,3 +149,25 @@ async fn friends_reads_the_contact_list_route() {
     assert_eq!(users.len(), 1);
     assert_eq!(users[0].user_id, "friend");
 }
+
+#[tokio::test]
+async fn blocking_users_reads_the_blocked_list_route() {
+    let (api, server) = endpoint(
+        200,
+        json!({"data": [{
+            "user_id": "blocked", "identity_number": "7001", "relationship": "BLOCKING",
+            "biography": "", "is_verified": false, "is_scam": false, "app": null,
+        }]}),
+    )
+    .await;
+
+    let users = api.blocking_users().await.unwrap();
+
+    let request = server.await.unwrap();
+    assert!(request.starts_with(b"GET /blocking_users HTTP/1.1"));
+    assert_eq!(users[0].user_id, "blocked");
+    assert!(matches!(
+        users[0].relationship,
+        Some(UserRelationship::Blocking)
+    ));
+}
