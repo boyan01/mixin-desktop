@@ -1618,15 +1618,14 @@ impl ServiceDecryptMessage {
             }
             return Ok(());
         } else if message.action == message_action::ROLE {
+            // Dismissal may arrive as an empty role; callers treat only a
+            // missing role as a plain member.
+            let role = message.role.clone().filter(|role| !role.is_empty());
             self.database
                 .participant_dao
-                .update_participant_role(
-                    &data.conversation_id,
-                    &message.participant_id,
-                    &message.role,
-                )
+                .update_participant_role(&data.conversation_id, &message.participant_id, &role)
                 .await?;
-            if message.participant_id != self.user_id || message.role.is_none() {
+            if message.participant_id != self.user_id || role.is_none() {
                 return Ok(());
             }
         } else if message.action == message_action::EXPIRE {
@@ -2503,6 +2502,46 @@ mod tests {
         assert_eq!(stored.quote_message_id.as_deref(), Some("not-local"));
         assert_eq!(stored.content, None);
         assert_eq!(stored.status, MessageStatus::Read);
+    }
+
+    #[tokio::test]
+    async fn empty_role_clears_own_admin_role_without_a_system_row() {
+        let (_directory, database, _signal, service) = decrypt_service_fixture().await;
+        database
+            .participant_dao
+            .insert_participant(&Participant {
+                conversation_id: "conversation".into(),
+                user_id: "me".into(),
+                role: Some("ADMIN".into()),
+                created_at: chrono::Utc::now(),
+            })
+            .await
+            .unwrap();
+        let payload = serde_json::json!({
+            "action": "ROLE", "participant_id": "me", "user_id": "peer", "role": ""
+        })
+        .to_string();
+
+        service
+            .process_system_message(&blaze_data(
+                "SYSTEM_CONVERSATION",
+                &Base64::encode_string(payload.as_bytes()),
+            ))
+            .await
+            .unwrap();
+
+        let participant = database
+            .participant_dao
+            .find_participant_by_id("conversation", "me")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(participant.role, None);
+        assert!(!database
+            .message_dao
+            .is_message_exits(&"event".to_owned())
+            .await
+            .unwrap());
     }
 
     #[tokio::test]
