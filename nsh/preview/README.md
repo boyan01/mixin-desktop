@@ -85,11 +85,12 @@ Rust edits rebuild and reload the page. Requirements: LLVM's `clang` and `llvm-a
 the `wasm32-unknown-unknown` target, and the `wasm-bindgen` CLI of the version in
 `Cargo.lock` (`cargo install wasm-bindgen-cli --version <version> --locked`).
 
-Use it to iterate on layout, copy and interaction. It does not replace native
-captures: browser fonts, text measurement, scrolling, menus and window behavior
-differ. Audio playback, recording, animated stickers and video metadata return
-`unsupported` in the browser, and local fixture images are embedded instead of read
-from disk.
+This is the default way to check layout and style. Native captures (above) remain
+for what the browser cannot show: `currentColor` SVG icons render black
+([longbridge/nsh#1466](https://github.com/longbridge/nsh/issues/1466)), and native
+fonts, scrolling, animation smoothness, menus and windows differ. Audio playback,
+recording, animated stickers and video metadata report unsupported, and local
+fixture images are embedded instead of read from disk.
 
 ## Scene ownership
 
