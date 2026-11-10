@@ -1,5 +1,4 @@
-use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,6 +8,7 @@ use chrono::Utc;
 use log::error;
 use tokio::sync::Notify;
 
+use crate::core::attachment::{message_media_files, remove_media_files};
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::db::MixinDatabase;
 
@@ -18,12 +18,16 @@ pub struct ExpiredMessageService {
 }
 
 impl ExpiredMessageService {
-    pub fn new(database: Arc<MixinDatabase>, changes: Option<ConversationChangeNotifier>) -> Self {
+    pub fn new(
+        database: Arc<MixinDatabase>,
+        changes: Option<ConversationChangeNotifier>,
+        account_data_dir: PathBuf,
+    ) -> Self {
         let notify = Arc::new(Notify::new());
         let runner_notify = notify.clone();
         let handle = crate::task::spawn(async move {
             loop {
-                match cleanup_expired_messages(&database).await {
+                match cleanup_expired_messages(&database, &account_data_dir).await {
                     Ok(true) => {
                         if let Some(changes) = &changes {
                             changes.notify_all();
@@ -74,7 +78,10 @@ impl Drop for ExpiredMessageService {
     }
 }
 
-async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<bool> {
+async fn cleanup_expired_messages(
+    database: &MixinDatabase,
+    account_data_dir: &Path,
+) -> Result<bool> {
     let mut deleted = false;
     for expired in database
         .expired_message_dao
@@ -94,24 +101,8 @@ async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<bool> {
             continue;
         };
 
-        let mut media_urls = database
-            .transcript_message_dao
-            .media_urls_by_transcript_id(&message.message_id)
+        remove_media_files(message_media_files(database, account_data_dir, &message).await?)
             .await?;
-        if let Some(path) = message.media_url.filter(|path| !path.is_empty()) {
-            media_urls.push(path);
-        }
-        media_urls.sort_unstable();
-        media_urls.dedup();
-        for path in media_urls {
-            if Path::new(&path).is_absolute() {
-                if let Err(err) = crate::fs::remove_file(&path).await {
-                    if err.kind() != ErrorKind::NotFound {
-                        return Err(err.into());
-                    }
-                }
-            }
-        }
         database
             .message_dao
             .delete_message(&message.conversation_id, &message.message_id)
@@ -130,6 +121,53 @@ mod tests {
     use super::*;
     use crate::db::mixin::message::Message;
     use crate::db::mixin::transcript_message::TranscriptMessage;
+
+    #[tokio::test]
+    async fn cleanup_removes_media_stored_under_a_relative_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let file = directory
+            .path()
+            .join("Media/Images/conversation/expired.jpg");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, b"image").unwrap();
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, category, name, created_at, status, \
+             mute_until) VALUES ('conversation', 'CONTACT', '', 0, 0, 0)",
+        )
+        .execute(&database.user_dao.0)
+        .await
+        .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "expired".into(),
+                conversation_id: "conversation".into(),
+                user_id: "peer".into(),
+                category: "SIGNAL_IMAGE".into(),
+                media_url: Some("conversation/expired.jpg".into()),
+                media_mime_type: Some("image/jpeg".into()),
+                status: MessageStatus::Read,
+                created_at: Utc::now().naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        database
+            .expired_message_dao
+            .insert("expired", 60, Some(Utc::now().timestamp() - 1))
+            .await
+            .unwrap();
+
+        cleanup_expired_messages(&database, directory.path())
+            .await
+            .unwrap();
+
+        assert!(!file.exists());
+        database.close().await;
+    }
 
     #[tokio::test]
     async fn cleanup_deletes_expired_message_and_tracking_row() {
@@ -164,7 +202,9 @@ mod tests {
             .await
             .unwrap();
 
-        cleanup_expired_messages(&database).await.unwrap();
+        cleanup_expired_messages(&database, directory.path())
+            .await
+            .unwrap();
 
         assert!(database
             .message_dao
@@ -232,7 +272,9 @@ mod tests {
             .await
             .unwrap();
 
-        cleanup_expired_messages(&database).await.unwrap();
+        cleanup_expired_messages(&database, directory.path())
+            .await
+            .unwrap();
 
         assert!(!parent_path.exists());
         assert!(!child_path.exists());

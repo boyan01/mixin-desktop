@@ -20,7 +20,9 @@ use uuid::Uuid;
 use sdk::message_category::MessageCategory as _;
 use sdk::{ContactMessage, ConversationCategory, LiveMessage, MessageStatus, StickerMessage};
 
-use crate::core::attachment::{attachment_path, transcript_attachment_path};
+use crate::core::attachment::{
+    attachment_path, message_media_files, remove_media_files, transcript_attachment_path,
+};
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{MediaStatus, Message};
@@ -917,10 +919,20 @@ impl MessageAccess {
                 return Err(anyhow!("message does not belong to conversation"));
             }
         }
+        // Collected first: deleting a transcript also deletes its children.
+        let mut media_files = Vec::new();
+        for message in &messages {
+            media_files.extend(
+                message_media_files(&self.database, &self.account_data_dir, message).await?,
+            );
+        }
         self.database
             .message_dao
             .delete_messages_batch(conversation_id, message_ids)
             .await?;
+        if let Err(error) = remove_media_files(media_files).await {
+            warn!("failed to remove deleted message media: {error}");
+        }
         self.notify_conversation_changed(conversation_id);
         Ok(())
     }

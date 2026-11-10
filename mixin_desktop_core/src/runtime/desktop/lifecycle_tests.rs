@@ -646,6 +646,50 @@ async fn event_cursor_past_newest_message_is_rejected_so_a_rebuilt_store_is_not_
 }
 
 #[tokio::test]
+async fn deleting_a_message_removes_media_stored_under_a_relative_path() {
+    let fixture = Fixture::new().await;
+    let file = fixture
+        .runtime
+        .account_data_dir
+        .join("Media/Files/conversation/deleted.bin");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, b"data").unwrap();
+    crate::db::query(
+        "INSERT INTO conversations (conversation_id, category, name, created_at, status, \
+         mute_until) VALUES ('conversation', 'CONTACT', '', 0, 0, 0)",
+    )
+    .execute(&fixture.runtime.database.user_dao.0)
+    .await
+    .unwrap();
+    fixture
+        .runtime
+        .database
+        .message_dao
+        .insert_message(&crate::db::mixin::message::Message {
+            message_id: "deleted".into(),
+            conversation_id: "conversation".into(),
+            user_id: USER.into(),
+            category: "PLAIN_DATA".into(),
+            media_url: Some("conversation/deleted.bin".into()),
+            name: Some("deleted.bin".into()),
+            created_at: chrono::Utc::now().naive_utc(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    fixture
+        .runtime
+        .message_access()
+        .delete_messages("conversation".into(), vec!["deleted".into()])
+        .await
+        .unwrap();
+
+    assert!(!file.exists());
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn shutting_down_old_account_does_not_stop_mcp_bound_to_its_replacement() {
     let old = Fixture::new().await;
     let replacement = Fixture::new().await;

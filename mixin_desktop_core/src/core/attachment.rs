@@ -102,6 +102,10 @@ impl<R: AsyncRead + Unpin> AsyncRead for ProgressReader<R> {
 }
 
 impl AttachmentService {
+    pub(crate) fn account_data_dir(&self) -> &Path {
+        &self.account_data_dir
+    }
+
     pub fn new(
         mixin_client: Arc<MixinClient>,
         http_client: HttpClient,
@@ -599,6 +603,68 @@ pub(crate) fn attachment_path(account_data_dir: &Path, message: &Message) -> Res
         .join(media_type)
         .join(&message.conversation_id)
         .join(format!("{}{}", message.message_id, suffix)))
+}
+
+/// Files that hold a message's media, including its transcript children.
+/// A relative `media_url` is the Flutter form and resolves from the message.
+pub(crate) async fn message_media_files(
+    database: &crate::db::MixinDatabase,
+    account_data_dir: &Path,
+    message: &Message,
+) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    if let Some(url) = stored_media_url(&message.media_url) {
+        if Path::new(url).is_absolute() {
+            files.push(PathBuf::from(url));
+        } else if message.category.is_attachment() {
+            files.push(attachment_path(account_data_dir, message)?);
+        }
+    }
+    if message.category.is_transcript() {
+        for child in database
+            .transcript_message_dao
+            .find_by_transcript_id(&message.message_id)
+            .await?
+        {
+            let Some(url) = stored_media_url(&child.media_url) else {
+                continue;
+            };
+            if Path::new(url).is_absolute() {
+                files.push(PathBuf::from(url));
+            } else if child.category.is_attachment() {
+                files.push(transcript_attachment_path(
+                    account_data_dir,
+                    &Message {
+                        message_id: child.message_id.clone(),
+                        category: child.category.clone(),
+                        media_mime_type: child.media_mime_type.clone(),
+                        name: child.media_name.clone(),
+                        ..Message::default()
+                    },
+                )?);
+            }
+        }
+    }
+    files.sort_unstable();
+    files.dedup();
+    Ok(files)
+}
+
+fn stored_media_url(url: &Option<String>) -> Option<&str> {
+    url.as_deref().filter(|url| !url.trim().is_empty())
+}
+
+/// Removes every file that exists and reports the last failure.
+pub(crate) async fn remove_media_files(files: Vec<PathBuf>) -> std::io::Result<()> {
+    let mut result = Ok(());
+    for file in files {
+        if let Err(error) = crate::fs::remove_file(&file).await {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                result = Err(error);
+            }
+        }
+    }
+    result
 }
 
 pub(crate) fn attachment_file_name(path: &Path) -> Result<&str> {

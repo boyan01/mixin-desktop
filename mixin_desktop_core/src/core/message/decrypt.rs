@@ -21,6 +21,7 @@ use sdk::{
     SystemCircleAction, SYSTEM_USER,
 };
 
+use crate::core::attachment::{message_media_files, remove_media_files};
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::encrypted_protocol;
@@ -1316,39 +1317,37 @@ impl ServiceDecryptMessage {
             .message_dao
             .find_message_by_id(&recall.message_id)
             .await?;
-        let mut media_urls = if recalled
-            .as_ref()
-            .is_some_and(|message| message.category.is_transcript())
-        {
-            for transcript in self
-                .database
-                .transcript_message_dao
-                .find_by_transcript_id(&recall.message_id)
-                .await?
-                .into_iter()
-                .filter(|message| message.category.is_attachment())
-            {
-                self.request_attachment_cancel(&transcript.message_id, Some(&recall.message_id));
-            }
-            self.database
-                .transcript_message_dao
-                .media_urls_by_transcript_id(&recall.message_id)
-                .await?
-        } else {
-            Vec::new()
-        };
-        if recalled
-            .as_ref()
-            .is_some_and(|message| message.category.is_attachment())
-        {
-            self.request_attachment_cancel(&recall.message_id, None);
-            if let Some(path) = recalled
-                .as_ref()
-                .and_then(|message| message.media_url.clone())
-            {
-                media_urls.push(path);
+        if let Some(message) = &recalled {
+            if message.category.is_transcript() {
+                for transcript in self
+                    .database
+                    .transcript_message_dao
+                    .find_by_transcript_id(&recall.message_id)
+                    .await?
+                    .into_iter()
+                    .filter(|message| message.category.is_attachment())
+                {
+                    self.request_attachment_cancel(
+                        &transcript.message_id,
+                        Some(&recall.message_id),
+                    );
+                }
+            } else if message.category.is_attachment() {
+                self.request_attachment_cancel(&recall.message_id, None);
             }
         }
+        // Collected first: recalling clears the row these paths come from.
+        let media_files = match &recalled {
+            Some(message) => {
+                message_media_files(
+                    &self.database,
+                    self.app_service.attachment.account_data_dir(),
+                    message,
+                )
+                .await?
+            }
+            None => Vec::new(),
+        };
         self.database
             .message_dao
             .recall_message(&data.conversation_id, &recall.message_id)
@@ -1357,17 +1356,8 @@ impl ServiceDecryptMessage {
             .message_history_dao
             .insert(&data.message_id)
             .await?;
-        media_urls.sort_unstable();
-        media_urls.dedup();
-        for path in media_urls
-            .into_iter()
-            .filter(|path| std::path::Path::new(path).is_absolute())
-        {
-            if let Err(err) = crate::fs::remove_file(&path).await {
-                if err.kind() != std::io::ErrorKind::NotFound {
-                    warn!("failed to remove recalled attachment {path}: {err}");
-                }
-            }
+        if let Err(err) = remove_media_files(media_files).await {
+            warn!("failed to remove recalled attachment: {err}");
         }
         Ok(())
     }
@@ -2437,6 +2427,42 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(mentioned, ["event"]);
+    }
+
+    #[tokio::test]
+    async fn recall_removes_attachment_stored_under_a_relative_path() {
+        let (directory, database, _signal, service) = decrypt_service_fixture().await;
+        let file = directory
+            .path()
+            .join("Media/Images/conversation/recalled.jpg");
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        std::fs::write(&file, b"image").unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "recalled".into(),
+                conversation_id: "conversation".into(),
+                user_id: "peer".into(),
+                category: "SIGNAL_IMAGE".into(),
+                media_url: Some("conversation/recalled.jpg".into()),
+                media_mime_type: Some("image/jpeg".into()),
+                status: MessageStatus::Delivered,
+                created_at: chrono::Utc::now().naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        let payload = serde_json::json!({ "message_id": "recalled" }).to_string();
+
+        service
+            .process_recall(&blaze_data(
+                "MESSAGE_RECALL",
+                &Base64::encode_string(payload.as_bytes()),
+            ))
+            .await
+            .unwrap();
+
+        assert!(!file.exists());
     }
 
     #[tokio::test]

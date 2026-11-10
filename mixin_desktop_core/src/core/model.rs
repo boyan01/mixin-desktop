@@ -40,8 +40,11 @@ impl AppService {
     ) -> Self {
         let account_id = auth.account.user_id.clone();
         let conversation = message_sender.conversation.clone();
-        let expired_message =
-            expired_message::ExpiredMessageService::new(db.clone(), changes.clone());
+        let expired_message = expired_message::ExpiredMessageService::new(
+            db.clone(),
+            changes.clone(),
+            attachment.account_data_dir().to_owned(),
+        );
         let expired_message_notify = expired_message.notifier();
         AppService {
             circle: CircleService {
