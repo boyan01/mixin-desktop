@@ -17,10 +17,7 @@ pub(super) fn banner(account: Arc<AccountClient>, conversation_id: String) -> im
     let announcement = signal(String::new());
     let dismissed = signal(None::<String>);
     let busy = signal(false);
-    let settings = use_context::<Stored<Option<SettingsClient>>>()
-        .expect("App provides settings")
-        .with(|settings| settings.clone())
-        .expect("Desktop settings initialized");
+    let settings = crate::settings_client();
     let setting_key = stored(SettingsClient::dismissed_announcement_key(
         &account.account_id(),
         &conversation_id,
