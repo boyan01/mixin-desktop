@@ -25,7 +25,6 @@ const REFRESH_INTERVAL: Duration = Duration::from_millis(60);
 /// The most rows a jump scrolls through; past them a reader cannot follow the
 /// motion, so the target is placed at once and its rows ease in instead.
 const SCROLL_JUMP_ROWS: usize = 40;
-const REVEAL_MS: f32 = 220.0;
 const REVEAL_OFFSET: f32 = 24.0;
 /// Where a jump target lands. NSH mirrors view_position for an inverted list:
 /// 0.8 puts the target near Flutter's 0.2 focus anchor measured from the top.
@@ -79,7 +78,7 @@ impl Reveal {
             self.opacity.set(1.0);
             return;
         };
-        let ms = crate::motion::duration(REVEAL_MS);
+        let ms = crate::motion::duration(crate::motion::TIMELINE_REVEAL_MS);
         self.offset.set(if reduce_motion() {
             0.0
         } else if older {
@@ -254,7 +253,7 @@ impl Timeline {
                 state.highlight_opacity.set(1.0);
                 let finished = state.highlight_opacity.timing(
                     0.0,
-                    crate::motion::duration(1200.0),
+                    crate::motion::duration(crate::motion::JUMP_HIGHLIGHT_MS),
                     nsh_core::animation::Easing::EaseOut,
                 );
                 spawn(async move {

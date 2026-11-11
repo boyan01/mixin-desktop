@@ -424,6 +424,11 @@ const SCENES: &[Scene] = &[
         mount: button_pages::quick_search,
     },
     Scene {
+        name: "chat-chrome",
+        actions: messages::CHROME_ACTIONS,
+        mount: messages::chrome,
+    },
+    Scene {
         name: "conversations",
         actions: button_pages::LIST_ACTIONS,
         mount: button_pages::conversations,

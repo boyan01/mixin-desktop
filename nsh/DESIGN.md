@@ -5,6 +5,14 @@ over `nsh_base`. Values follow the Flutter app; the dark theme tracks it closely
 desktop wins: transient feedback is a bottom-centered `ui::Toasts` card (2s success,
 5s error), and the send dialog is a thumbnail grid (`thumbnail-grid-size`) instead of a list.
 
+The chat's chrome floats over the timeline as glass capsules: the title bar's
+identity and each of its buttons, the latest pin (in the title row from
+`glass-inline-pin-width`, on a row of its own below that), the jump buttons, the
+announcement, the composer and toasts. `ui::glass` draws Liquid Glass where the
+platform has it (macOS 26 and later) and a `glass-blur` backdrop under a
+`glass-tint-opacity` tint elsewhere. Content, such as bubbles, cards and settings
+lists, stays solid.
+
 **The rule: screens use `ui::` components and tokens only. No raw `px`, colors or
 radii in screen modules.** A missing role or variant goes into `theme.json` or
 `ui/` first. Documented exceptions are physical or measured geometry, such as a
@@ -139,6 +147,7 @@ a component takes `.focus(ui::ring)`.
 
 | Component | Use |
 | --- | --- |
+| `glass`, `glass_pill`, `glass_button` | A surface, capsule or round button that floats over the chat; never content |
 | `title_bar` | Any strip level with the native controls: it drags the window, double click follows the system. Pad with `title_bar_leading(offset)` |
 | `nav_row` | A rail row, or a compact pressable identity |
 | `list_row` | A conversation-sized list cell, 80pt with margins |

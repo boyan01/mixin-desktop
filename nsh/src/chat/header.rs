@@ -1,4 +1,6 @@
-//! The chat's title bar: identity, app entry and panel toggles.
+//! The chat's title bar: glass capsules for identity, the latest pin when the
+//! chat is wide enough, the app entry and the panel toggles, floating over the
+//! timeline.
 use mixin_desktop_api::ConversationListData;
 use nsh_core::prelude::*;
 
@@ -14,6 +16,8 @@ pub(super) fn bar(
     group: bool,
     narrow: impl Fn() -> bool + Copy + 'static,
     back: impl Fn() + 'static,
+    pinned: super::pinned::Pinned,
+    inline_pin: Memo<bool>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let navigation = use_context::<ChatNavigation>().expect("Home provides chat navigation");
@@ -46,86 +50,95 @@ pub(super) fn bar(
         })
         .pr_3()
         .py_2()
-        .bg(ui::surface_list)
-        .border_b_1()
-        .border_color(ui::border)
         .child(
-            ui::round_button()
-                .size_8()
-                .style_when(move || !narrow(), |style| style.hidden())
-                .on_press(back)
-                .accessibility_label(move || Some(i18n.text(Key::Back).into()))
-                .child(ui::icon(ui::Icon::ArrowLeft)),
+            ui::glass_button(
+                ui::round_button()
+                    .on_press(back)
+                    .accessibility_label(move || Some(i18n.text(Key::Back).into()))
+                    .child(ui::icon(ui::Icon::ArrowLeft)),
+            )
+            .style_when(move || !narrow(), |style| style.hidden()),
         )
         .child(
-            ui::nav_row()
-                .min_w_0()
-                .min_h_0()
-                .flex_shrink(1.0)
-                .px_1()
-                .py_0()
-                .gap_3()
-                .accessibility_label(move || Some(i18n.text(Key::ChatInfo).into()))
-                .on_press(move || navigation.toggle_panel(Panel::Info))
-                .child(ui::conversation_avatar(
-                    move || {
-                        avatar.with(|_| ());
-                        row.with_untracked(|row| Some(row.clone()))
-                    },
-                    ui::AvatarSize::Bar,
-                ))
-                .child(
-                    view()
-                        .flex_shrink(1.0)
-                        .min_w_0()
-                        .child(
-                            view()
-                                .flex_row()
-                                .min_w_0()
-                                .items_center()
-                                .gap_1()
-                                .child(
-                                    text(move || row.with(|row| row.name.clone()))
-                                        .min_w_0()
-                                        .flex_shrink(1.0)
-                                        .number_of_lines(1)
-                                        .text_role(ui::TextRole::Title),
-                                )
-                                .child(view().flex_shrink_0().child(dynamic(move || {
-                                    let (verified, bot, membership) = badge.get();
-                                    untracked(|| {
-                                        crate::appearance::identity_badge(
-                                            group,
-                                            verified,
-                                            bot,
-                                            membership.as_deref(),
-                                        )
-                                    })
-                                })))
-                                .child(when(
-                                    move || row.with(|row| row.expire_in > 0),
-                                    || {
-                                        ui::icon(ui::Icon::Disappearing)
-                                            .text_color(ui::fg_secondary)
-                                    },
-                                )),
-                        )
-                        .child(
-                            text(move || {
-                                if group {
-                                    i18n.members(row.with(|row| row.participant_count))
-                                } else {
-                                    row.with(|row| row.identity_number.clone())
-                                }
-                            })
-                            .text_role(ui::TextRole::Caption)
-                            .number_of_lines(1)
-                            .text_color(ui::fg_secondary),
-                        ),
-                ),
+            ui::glass_pill().min_w_0().flex_shrink(1.0).child(
+                ui::nav_row()
+                    .min_w_0()
+                    .min_h_0()
+                    .h_full()
+                    .flex_shrink(1.0)
+                    .rounded(ui::radius_full())
+                    .pl_1()
+                    .pr_4()
+                    .py_0()
+                    .gap_2()
+                    .accessibility_label(move || Some(i18n.text(Key::ChatInfo).into()))
+                    .on_press(move || navigation.toggle_panel(Panel::Info))
+                    .child(ui::conversation_avatar(
+                        move || {
+                            avatar.with(|_| ());
+                            row.with_untracked(|row| Some(row.clone()))
+                        },
+                        ui::AvatarSize::Compact,
+                    ))
+                    .child(
+                        view()
+                            .flex_shrink(1.0)
+                            .min_w_0()
+                            .child(
+                                view()
+                                    .flex_row()
+                                    .min_w_0()
+                                    .items_center()
+                                    .gap_1()
+                                    .child(
+                                        text(move || row.with(|row| row.name.clone()))
+                                            .min_w_0()
+                                            .flex_shrink(1.0)
+                                            .number_of_lines(1)
+                                            .text_role(ui::TextRole::Title),
+                                    )
+                                    .child(view().flex_shrink_0().child(dynamic(move || {
+                                        let (verified, bot, membership) = badge.get();
+                                        untracked(|| {
+                                            crate::appearance::identity_badge(
+                                                group,
+                                                verified,
+                                                bot,
+                                                membership.as_deref(),
+                                            )
+                                        })
+                                    })))
+                                    .child(when(
+                                        move || row.with(|row| row.expire_in > 0),
+                                        || {
+                                            ui::icon(ui::Icon::Disappearing)
+                                                .text_color(ui::fg_secondary)
+                                        },
+                                    )),
+                            )
+                            .child(
+                                text(move || {
+                                    if group {
+                                        i18n.members(row.with(|row| row.participant_count))
+                                    } else {
+                                        row.with(|row| row.identity_number.clone())
+                                    }
+                                })
+                                .text_role(ui::TextRole::Caption)
+                                .number_of_lines(1)
+                                .text_color(ui::fg_secondary),
+                            ),
+                    ),
+            ),
         )
         // The identity hugs its content, leaving the bar's middle to drag the window.
-        .child(view().flex_1())
+        .child(
+            view()
+                .flex_1()
+                .min_w_0()
+                .flex_row()
+                .child(when(move || inline_pin.get(), move || pinned.view(1))),
+        )
         .child(when(
             move || !group && row.with(|row| row.is_bot && !row.owner_id.is_empty()),
             move || {
@@ -133,9 +146,8 @@ pub(super) fn bar(
                 view()
                     .flex_none()
                     .tooltip(ui::hint(move || open().to_owned()))
-                    .child(
+                    .child(ui::glass_button(
                         ui::round_button()
-                            .size_8()
                             .accessibility_label(move || Some(open().into()))
                             .on_press(move || {
                                 let (owner, conversation) = row.with_untracked(|row| {
@@ -147,7 +159,7 @@ pub(super) fn bar(
                                 );
                             })
                             .child(ui::icon(ui::Icon::Bot)),
-                    )
+                    ))
             },
         ))
         .child(panel_toggle(
@@ -171,10 +183,11 @@ fn panel_toggle(
     mode: Panel,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    ui::round_button()
-        .size_8()
-        .accessibility_label(move || Some(i18n.text(label).into()))
-        .selected(move || navigation.panel.get() == Some(mode))
-        .on_press(move || navigation.toggle_panel(mode))
-        .child(ui::icon(icon))
+    ui::glass_button(
+        ui::round_button()
+            .accessibility_label(move || Some(i18n.text(label).into()))
+            .selected(move || navigation.panel.get() == Some(mode))
+            .on_press(move || navigation.toggle_panel(mode))
+            .child(ui::icon(icon)),
+    )
 }

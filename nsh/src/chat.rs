@@ -220,6 +220,18 @@ pub(crate) fn screen(
     let incoming_files = signal(Vec::<composer::AttachmentSource>::new());
     let no_rows = move || !loading.get() && !failed.get() && messages.with(Vec::is_empty);
     let show_encryption = move || encrypted.get() && !header.with(|row| row.is_bot);
+    let pinned = pinned::Pinned::mount(
+        account.clone(),
+        conversation.conversation_id.clone(),
+        target,
+        side,
+    );
+    // The chrome floats over the timeline: the rows scroll under it, and what
+    // must stay readable starts below its measured height.
+    let chrome_height = signal(0.0_f32);
+    let chrome_inset = move || px(chrome_height.get());
+    let chat_width = signal(0.0_f32);
+    let inline_pin = computed(move || chat_width.get() >= ui::glass_inline_pin_width().0);
     view()
         .on_file_drag_enter(move |_: &()| dragging.set(true))
         .on_file_drag_leave(move |_: &()| dragging.set(false))
@@ -249,13 +261,16 @@ pub(crate) fn screen(
                         .opacity(ui::chat_pattern_opacity()),
                 )
                 .bg(ui::surface_chat)
-                .child(header::bar(header, group, narrow, back))
-                .child(timeline.controls(i18n))
-                .child(unread.controls(i18n))
-                .child(message_selection::selection_bar(actions, detail_id))
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    let width = bounds.size.width.0;
+                    if chat_width.get_untracked() != width {
+                        chat_width.set(width);
+                    }
+                })
                 .child(when(loading, move || {
                     view()
                         .flex_1()
+                        .pt(chrome_inset)
                         .items_center()
                         .justify_center()
                         .child(ui::busy_indicator(
@@ -264,18 +279,14 @@ pub(crate) fn screen(
                         ))
                 }))
                 .child(when(no_rows, move || {
-                    ui::empty(
+                    view().flex_1().pt(chrome_inset).child(ui::empty(
                         move || i18n.text(Key::NoMessages),
                         move || i18n.text(Key::NoMessagesBody),
-                    )
+                    ))
                 }))
                 .child(when(
                     move || no_rows() && show_encryption(),
                     move || message_system::encryption_notice(actions),
-                ))
-                .child(announcement::banner(
-                    account.clone(),
-                    conversation.conversation_id.clone(),
                 ))
                 .child(
                     view()
@@ -289,7 +300,8 @@ pub(crate) fn screen(
                                     move || messages.with(Vec::len),
                                     move |at| rows.row(at),
                                 )
-                                .footer(when(
+                                // The oldest end of the inverted list: room under the chrome.
+                                .footer(view().child(view().h(chrome_inset)).child(when(
                                     move || {
                                         !loading.get()
                                             && !failed.get()
@@ -297,7 +309,7 @@ pub(crate) fn screen(
                                             && show_encryption()
                                     },
                                     move || message_system::encryption_notice(actions),
-                                ))
+                                )))
                                 .keys(move || {
                                     messages.with(|rows| {
                                         rows.iter()
@@ -321,13 +333,15 @@ pub(crate) fn screen(
                                 .min_h_0(),
                             ),
                         )
-                        .child(timeline.paging_indicator(i18n))
-                        .child(pinned::banner(
-                            account.clone(),
-                            conversation.conversation_id.clone(),
-                            target,
-                            side,
-                        ))
+                        .child(
+                            view()
+                                .absolute()
+                                .left_0()
+                                .right_0()
+                                .top(chrome_inset)
+                                .pointer_events(PointerEvents::BoxNone)
+                                .child(timeline.paging_indicator(i18n)),
+                        )
                         .child(
                             view()
                                 .absolute()
@@ -357,7 +371,22 @@ pub(crate) fn screen(
                     session_owner,
                     incoming_files,
                     focus_layout,
-                })),
+                }))
+                .child(chrome(
+                    chrome_height,
+                    pinned,
+                    inline_pin,
+                    header::bar(header, group, narrow, back, pinned, inline_pin),
+                    view()
+                        .pointer_events(PointerEvents::BoxNone)
+                        .child(timeline.controls(i18n))
+                        .child(unread.controls(i18n))
+                        .child(message_selection::selection_bar(actions, detail_id))
+                        .child(announcement::banner(
+                            account.clone(),
+                            conversation.conversation_id.clone(),
+                        )),
+                )),
         )
         .child(when(
             move || dragging.get() && can_send.get(),
@@ -431,6 +460,81 @@ pub(crate) fn screen(
                     },
                 )),
         )
+}
+
+/// The chrome floating over the top of the timeline: the title bar, the pinned
+/// message on a row of its own when the title bar has no room for it, then the
+/// chat's notices. Empty space passes presses to the rows under it.
+fn chrome(
+    height: Signal<f32>,
+    pinned: pinned::Pinned,
+    inline_pin: Memo<bool>,
+    title: impl IntoElement,
+    notices: impl IntoElement,
+) -> View {
+    view()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .pointer_events(PointerEvents::BoxNone)
+        .on_layout(move |bounds: &Bounds<Points>| {
+            let value = bounds.size.height.0;
+            if height.get_untracked() != value {
+                height.set(value);
+            }
+        })
+        .child(title)
+        .child(
+            view()
+                .px_3()
+                .pb_2()
+                .flex_row()
+                .pointer_events(PointerEvents::BoxNone)
+                .style_when(
+                    move || inline_pin.get() || !pinned.visible(),
+                    |style| style.hidden(),
+                )
+                .child(when(move || !inline_pin.get(), move || pinned.view(2))),
+        )
+        .child(notices)
+}
+
+/// The floating chrome over fixed rows, for the debug preview: no account.
+#[cfg(debug_assertions)]
+pub(crate) fn preview_chrome(
+    row: ConversationListData,
+    pin: Signal<Option<String>>,
+    list: impl IntoElement,
+) -> impl IntoElement {
+    let header = signal(row);
+    let group = header.with_untracked(|row| row.category == "GROUP");
+    let side = use_context::<crate::navigation::ChatNavigation>()
+        .expect("the preview provides chat navigation")
+        .panel;
+    let pinned = pinned::Pinned::detached(pin, side);
+    let height = signal(0.0_f32);
+    let width = signal(0.0_f32);
+    let inline_pin = computed(move || width.get() >= ui::glass_inline_pin_width().0);
+    view()
+        .flex_1()
+        .min_h_0()
+        .relative()
+        .on_layout(move |bounds: &Bounds<Points>| width.set(bounds.size.width.0))
+        .child(
+            view()
+                .flex_1()
+                .min_h_0()
+                .pt(move || px(height.get()))
+                .child(list),
+        )
+        .child(chrome(
+            height,
+            pinned,
+            inline_pin,
+            header::bar(header, group, || false, || {}, pinned, inline_pin),
+            view(),
+        ))
 }
 
 #[cfg(debug_assertions)]

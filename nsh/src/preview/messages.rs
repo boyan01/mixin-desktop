@@ -64,6 +64,41 @@ pub(super) fn system(_: Actions) -> View {
     timeline(fixtures::messages::system_rows())
 }
 
+pub(super) const CHROME_ACTIONS: &[&str] = &["Long pin", "No pin", "Reset"];
+
+/// The glass chrome over a timeline. The pin joins the title row from
+/// `glass-inline-pin-width`; narrow the viewport to see it take its own row.
+pub(super) fn chrome(actions: Actions) -> View {
+    let mode = super::button_pages::mode(actions, CHROME_ACTIONS);
+    provide_services();
+    let pin = signal(None::<String>);
+    effect(move || {
+        pin.set(match mode.get() {
+            "No pin" => None,
+            "Long pin" => Some(
+                "Ava pinned \"The release moves to Friday at 5 pm. Please finish the \
+                 review before Thursday noon and post the notes in this group.\""
+                    .into(),
+            ),
+            _ => Some("Ava pinned \"Release at 5 pm\"".into()),
+        })
+    });
+    let row = fixtures::conversations::stress_rows()
+        .into_iter()
+        .find(|row| row.category == "GROUP")
+        .expect("the stress rows include a group");
+    timeline_view(chat::preview_chrome(
+        row,
+        pin,
+        chat::detached_messages(
+            fixtures::USER_ID,
+            fixtures::messages::reply_rows(),
+            true,
+            fixtures::messages::mention_names(),
+        ),
+    ))
+}
+
 /// The chat background and its list, under the services `Home` provides a chat.
 fn timeline(rows: Vec<MessageListView>) -> View {
     provide_services();

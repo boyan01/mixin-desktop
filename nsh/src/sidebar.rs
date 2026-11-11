@@ -101,7 +101,8 @@ impl Labels {
         let compact = computed(move || nav.compact());
         effect(move || {
             let compact = compact.get();
-            let reduced = reduce_motion();
+            // Runs again when Reduce Motion changes.
+            let _ = reduce_motion();
             untracked(|| {
                 let change = generation.get().wrapping_add(1);
                 generation.replace(change);
@@ -110,13 +111,11 @@ impl Labels {
                 }
                 let end = labels.opacity.timing(
                     if compact { 0.0 } else { 1.0 },
-                    if reduced {
-                        80.0
-                    } else if compact {
-                        90.0
+                    crate::motion::duration(if compact {
+                        crate::motion::RAIL_LABELS_EXIT_MS
                     } else {
-                        130.0
-                    },
+                        crate::motion::RAIL_LABELS_ENTER_MS
+                    }),
                     Easing::EaseOut,
                 );
                 if compact {

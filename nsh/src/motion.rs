@@ -30,24 +30,32 @@ pub(crate) fn popup(style: StyleRefinement) -> StyleRefinement {
     style.transition().duration(|| duration(100.0)).ease_out()
 }
 
+/// A popup grows from 90% while it fades in, and shrinks back faster.
 pub(crate) fn popup_start(style: StyleRefinement) -> StyleRefinement {
-    style.opacity(0.0).translate_y(popup_offset)
+    style.opacity(0.0).scale(hidden_scale)
 }
 
 pub(crate) fn popup_end(style: StyleRefinement) -> StyleRefinement {
     style
         .opacity(0.0)
-        .translate_y(popup_offset)
+        .scale(hidden_scale)
         .duration(|| duration(80.0))
 }
 
-fn popup_offset() -> Points {
-    if reduce_motion() {
-        Points::ZERO
-    } else {
-        crate::ui::space_xs()
-    }
+/// Where a standalone surface grows from; under Reduce Motion it only fades.
+fn hidden_scale() -> f32 {
+    if reduce_motion() { 1.0 } else { ENTER_SCALE }
 }
+
+const ENTER_SCALE: f32 = 0.9;
+
+/// Older or newer rows that replace the ones in view rise or sink into place.
+pub(crate) const TIMELINE_REVEAL_MS: f32 = 220.0;
+/// How long a message reached by a jump keeps its highlight while it fades.
+pub(crate) const JUMP_HIGHLIGHT_MS: f32 = 1200.0;
+/// The rail's labels: they leave faster than they come back.
+pub(crate) const RAIL_LABELS_EXIT_MS: f32 = 90.0;
+pub(crate) const RAIL_LABELS_ENTER_MS: f32 = 130.0;
 
 #[derive(Clone, Copy)]
 enum Kind {
@@ -75,9 +83,8 @@ impl Kind {
 
     fn offset(self) -> f32 {
         match self {
-            Self::Modal => 8.0,
             Self::Panel | Self::Bottom => 12.0,
-            Self::Fade => 0.0,
+            Self::Modal | Self::Fade => 0.0,
         }
     }
 
@@ -86,7 +93,7 @@ impl Kind {
         if reduced || !matches!(self, Self::Modal) {
             1.0
         } else {
-            0.985
+            ENTER_SCALE
         }
     }
 }

@@ -30,7 +30,7 @@ pub(crate) use button::{
 pub(crate) use card::{
     card, card_row, checkbox_row, chevron, settings_row, static_row, toggle_row,
 };
-pub(crate) use chrome::{title_bar, title_bar_leading};
+pub(crate) use chrome::{glass, glass_button, glass_pill, title_bar, title_bar_leading};
 pub(crate) use dialog::{
     DialogWidth, dialog, dialog_card, dialog_close, dialog_surface, dialog_title,
     dialog_with_inset, held_dialog, profile_action, profile_actions, profile_bio, profile_card,

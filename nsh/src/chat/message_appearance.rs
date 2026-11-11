@@ -213,7 +213,7 @@ impl Frame {
 /// The disc under a control floating over the timeline. A state fill replaces a
 /// button's own, so the surface sits on a parent and hover stacks on it.
 pub(super) fn floating_disc() -> View {
-    view().rounded(ui::radius_full()).bg(ui::bubble_in)
+    ui::glass(view()).rounded(ui::radius_full())
 }
 
 /// The disc of a media state: play, download, or a file's extension.

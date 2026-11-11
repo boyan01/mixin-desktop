@@ -9,7 +9,7 @@ use super::{
     icon::{Icon, icon},
     tokens::{
         TextRole, Typography, border, danger, fg_primary, icon_md, radius_lg, space_md, space_sm,
-        space_xl, success, surface_popover,
+        space_xl, success,
     },
 };
 use crate::motion::Presence;
@@ -94,7 +94,7 @@ impl Toasts {
                     .pointer_events(PointerEvents::None)
                     .child(
                         presence.surface(
-                            view()
+                            super::glass(view())
                                 .flex_row()
                                 .items_center()
                                 .gap(space_sm())
@@ -102,7 +102,6 @@ impl Toasts {
                                 .px(space_md())
                                 .py(space_sm())
                                 .rounded(radius_lg())
-                                .bg(surface_popover)
                                 .border_1()
                                 .border_color(border)
                                 .shadow_lg()

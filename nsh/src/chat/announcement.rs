@@ -81,13 +81,15 @@ pub(super) fn banner(account: Arc<AccountClient>, conversation_id: String) -> im
     when(
         move || unread.with(Option::is_some),
         move || {
-            view()
+            ui::glass(view())
                 .flex_row()
                 .items_center()
                 .gap_2()
+                .mx_3()
+                .mb_2()
                 .px(ui::space_md())
                 .py_2()
-                .bg(ui::bubble_in)
+                .rounded(ui::radius_lg())
                 .child(
                     text(move || unread.get().unwrap_or_default())
                         .text_role(ui::TextRole::Body)

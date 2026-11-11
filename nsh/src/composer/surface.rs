@@ -4,9 +4,8 @@ use nsh_base::ButtonElement;
 use nsh_core::prelude::*;
 
 pub(crate) fn frame() -> View {
-    view()
+    ui::glass(view())
         .rounded(ui::radius_composer())
-        .bg(ui::bubble_in)
         .border_1()
         .border_color(ui::input_border)
 }

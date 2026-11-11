@@ -153,15 +153,17 @@ lengths! {
     bubble_nip_width = "bubble-nip-width";
     bubble_nip_height = "bubble-nip-height";
     bubble_nip_offset = "bubble-nip-offset";
-    /// The floating pinned-message card: its height, side inset, nip and buttons.
-    pin_banner_height = "pin-banner-height";
     /// One thumbnail in the send dialog's attachment grid.
     thumbnail_grid_size = "thumbnail-grid-size";
-    pin_banner_inset = "pin-banner-inset";
-    pin_nip_width = "pin-nip-width";
-    pin_nip_height = "pin-nip-height";
-    pin_button_size = "pin-button-size";
+    /// The close mark of a dismissible banner.
     pin_close_size = "pin-close-size";
+    /// The floating chat chrome: its pill height, the blur behind glass where the
+    /// platform has no Liquid Glass, the widest pinned pill, and the chat width
+    /// from which the pinned pill joins the title row.
+    glass_bar_height = "glass-bar-height";
+    glass_blur = "glass-blur";
+    glass_pin_max_width = "glass-pin-max-width";
+    glass_inline_pin_width = "glass-inline-pin-width";
     /// What a bubble leaves free on the side away from its sender.
     message_far_edge = "message-far-edge";
     /// Where a sender's name starts, from the bubble's nip gutter.
@@ -320,6 +322,11 @@ colors! {
 /// The opacity of a control that does not take input.
 pub(super) fn opacity_disabled() -> f32 {
     number("opacity-disabled")
+}
+
+/// The tint of a glass surface where the platform draws a blur instead.
+pub(crate) fn glass_tint_opacity() -> f32 {
+    number("glass-tint-opacity")
 }
 
 /// The opacity of an accent fill under a pointer.

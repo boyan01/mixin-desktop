@@ -2,7 +2,10 @@
 
 use nsh_core::{element::desktop::title_bar as native_title_bar, prelude::*};
 
-use super::tokens::{space_lg, title_bar_requested_height};
+use super::tokens::{
+    bubble_in, glass_bar_height, glass_blur, glass_tint_opacity, radius_full, space_lg,
+    title_bar_requested_height,
+};
 
 /// The row the top of every pane aligns to. The native height is authoritative;
 /// full screen and windows without native controls report none.
@@ -31,4 +34,33 @@ pub(crate) fn title_bar() -> View {
         .flex_row()
         .items_center()
         .window_drag(true)
+}
+
+/// A surface that floats over the chat: Liquid Glass where the platform draws it
+/// (macOS 26 and later), a blur under a translucent tint elsewhere. Use it only
+/// for controls and navigation above content, never for content itself.
+pub(crate) fn glass<T: Styled>(element: T) -> T {
+    element
+        .glass_effect(nsh_core::GlassEffect::Regular)
+        .backdrop_blur(glass_blur())
+        .bg(|| bubble_in().opacity(glass_tint_opacity()))
+}
+
+/// A glass capsule at least the floating chat chrome's height.
+pub(crate) fn glass_pill() -> View {
+    glass(view())
+        .min_h(glass_bar_height())
+        .flex_shrink_0()
+        .flex_row()
+        .items_center()
+        .rounded(radius_full())
+}
+
+/// A round glass control of the chrome's height. The glass stays on the
+/// capsule, so the button's hover and selected fills stack on its tint.
+pub(crate) fn glass_button(button: nsh_base::ButtonElement) -> View {
+    glass_pill()
+        .w(glass_bar_height())
+        .justify_center()
+        .child(button.size(glass_bar_height()))
 }
