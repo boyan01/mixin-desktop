@@ -57,6 +57,8 @@ impl Motion {
 pub(crate) struct Reveal {
     opacity: nsh_core::element::AnimatedValue,
     offset: nsh_core::element::AnimatedValue,
+    /// False from `hide` until `show`: the rows are not on screen.
+    shown: Signal<bool>,
 }
 
 impl Reveal {
@@ -64,15 +66,18 @@ impl Reveal {
         Self {
             opacity: animated_value(1.0),
             offset: animated_value(0.0),
+            shown: signal(true),
         }
     }
 
     fn hide(self) {
+        self.shown.set(false);
         self.opacity.set(0.0);
     }
 
     /// `older`: the rows came from above, as older messages sit in a chat.
     fn show(self, from: Option<bool>) {
+        self.shown.set(true);
         let Some(older) = from else {
             self.offset.set(0.0);
             self.opacity.set(1.0);
@@ -616,6 +621,11 @@ impl Timeline {
     }
 
     /// Failures and missing targets stay in the layout: they need an answer.
+    /// The first read has ended and its rows, if any, are placed on screen.
+    pub fn settled(self) -> bool {
+        !self.loading.get() && self.reveal.shown.get()
+    }
+
     pub fn controls(self, i18n: I18n) -> impl IntoElement {
         view()
             .flex_row()

@@ -64,13 +64,14 @@ pub(crate) fn screen(
 pub(crate) fn detached(
     account_id: &str,
     rows: Signal<Vec<ConversationListData>>,
+    selected: Signal<Option<ConversationListData>>,
     list: ElementRef,
 ) -> View {
     let cells = Cells {
         i18n: i18n::current(),
         account_id: stored(account_id.to_owned()),
         drafts: signal(HashMap::new()),
-        selected: signal(None),
+        selected,
         previews: signal(HashMap::new()),
         navigation: use_context().expect("the preview provides chat navigation"),
         commands: None,

@@ -560,33 +560,31 @@ impl Home {
                     .min_w_0()
                     .min_h_0()
                     .style_when(move || nav.settings.get(), |s| s.hidden())
-                    .child(dynamic(move || {
-                        let _conversation_id = selected_id.get();
-                        let conversation = selected.get_untracked();
-                        untracked(|| match conversation {
-                            Some(conversation) => {
-                                ui::owned(conversation.conversation_id.clone(), move || {
-                                    chat::screen(
-                                        self.client(),
-                                        conversation.clone(),
-                                        locate,
-                                        drafts,
-                                        pending,
-                                        owner,
-                                        move || selected.set(None),
-                                    )
-                                })
-                                .into_element()
-                            }
-                            None => view()
+                    .child(chat::panes(
+                        selected,
+                        selected_id,
+                        move || {
+                            view()
                                 .flex_1()
                                 .min_h_0()
                                 .bg(ui::surface_chat)
                                 .child(ui::title_bar())
                                 .child(ui::placeholder(move || i18n.text(Key::PickConversation)))
-                                .into_element(),
-                        })
-                    })),
+                                .into_element()
+                        },
+                        move |conversation, ready| {
+                            chat::screen(
+                                self.client(),
+                                conversation,
+                                locate,
+                                drafts,
+                                pending,
+                                owner,
+                                move || selected.set(None),
+                                ready,
+                            )
+                        },
+                    )),
             )
             .child(
                 view()

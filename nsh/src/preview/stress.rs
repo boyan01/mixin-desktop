@@ -112,6 +112,7 @@ pub(super) fn conversations(actions: Actions) -> View {
             .child(crate::conversation_list::detached(
                 fixtures::USER_ID,
                 rows,
+                signal(None),
                 list,
             )),
     )

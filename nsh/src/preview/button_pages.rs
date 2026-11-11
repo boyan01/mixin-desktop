@@ -752,6 +752,7 @@ pub(super) fn conversations(actions: Actions) -> View {
                             .take(20)
                             .collect(),
                     ),
+                    signal(None),
                     element_ref(),
                 )),
         )

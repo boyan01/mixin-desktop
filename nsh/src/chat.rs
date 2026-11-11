@@ -37,6 +37,8 @@ mod message_snapshot;
 mod message_system;
 mod message_text;
 mod message_transcript;
+mod panes;
+pub(crate) use panes::{Ready, panes};
 mod pinned;
 pub(crate) mod reedit;
 mod timeline;
@@ -52,6 +54,7 @@ use crate::{
     ui::{self, Typography as _},
 };
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn screen(
     account: Arc<AccountClient>,
     conversation: ConversationListData,
@@ -60,6 +63,7 @@ pub(crate) fn screen(
     pending: Signal<HashSet<String>>,
     session_owner: Owner,
     back: impl Fn() + 'static,
+    ready: Ready,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let navigation =
@@ -176,6 +180,13 @@ pub(crate) fn screen(
         }
     });
     let failed = timeline.failed;
+    // Once: the pane holding the previous chat gives way to this one.
+    let announced = stored(false);
+    effect(move || {
+        if timeline.settled() && !announced.replace(true) {
+            untracked(|| ready());
+        }
+    });
     unread.mark_read_while_open(messages, move || !loading.get() && !failed.get());
     let rows = message_row::Rows {
         actions,
