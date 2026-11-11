@@ -156,7 +156,9 @@ the last cursor.
 | Sent by this account, or a recall | not sent |
 
 Group system messages, such as this account being added to a group, arrive as
-`group` events with a `SYSTEM_*` category. Mute a group to receive only
+`group` events with a `SYSTEM_*` category. A `SYSTEM_CONVERSATION` message
+has an empty `content`; `action` (`ADD`, `REMOVE`, `ROLE`, ...), `participant_id` and
+`participant_full_name` say what happened and to whom. Mute a group to receive only
 mentions and quotes from it.
 
 ## Running under launchd

@@ -2304,7 +2304,7 @@ fn conversation_json(item: super::model::ConversationListData) -> Value {
     json!({"conversation_id":item.conversation_id,"owner_id":item.owner_id,"name":item.name,"avatar_url":item.avatar_url,"category":item.category,"draft":item.draft,"updated_at_millis":item.updated_at_millis,"unseen_count":item.unseen_count,"mention_count":item.mention_count,"is_muted":item.is_muted,"is_verified":item.is_verified,"is_scam":item.is_scam,"is_bot":item.is_bot,"is_pinned":item.is_pinned,"identity_number":item.identity_number,"circle_ids":item.circle_ids,"participant_count":item.participant_count})
 }
 fn message_json(item: super::model::MessageListView) -> Value {
-    json!({"message_id":item.message_id,"conversation_id":item.conversation_id,"sender_id":item.sender_id,"sender_name":item.sender_name,"sender_identity_number":item.sender_identity_number,"category":item.category,"content":item.content,"status":item.status,"created_at_micros":item.created_at_micros,"media_url":item.media_url,"media_mime_type":item.media_mime_type,"media_size":item.media_size,"caption":item.caption,"quote_message_id":item.quote_message_id,"quote_content":item.quote_content,"sticker_id":item.sticker_id,"shared_user_id":item.shared_user_id,"is_pinned":item.pinned})
+    json!({"message_id":item.message_id,"conversation_id":item.conversation_id,"sender_id":item.sender_id,"sender_name":item.sender_name,"sender_identity_number":item.sender_identity_number,"category":item.category,"content":item.content,"status":item.status,"created_at_micros":item.created_at_micros,"media_url":item.media_url,"media_mime_type":item.media_mime_type,"media_size":item.media_size,"caption":item.caption,"quote_message_id":item.quote_message_id,"quote_content":item.quote_content,"sticker_id":item.sticker_id,"shared_user_id":item.shared_user_id,"is_pinned":item.pinned,"action":item.action,"participant_id":item.participant_id,"participant_full_name":item.participant_full_name})
 }
 fn search_message_json(item: super::model::MessageListView, conversation: Option<Value>) -> Value {
     let mut message = message_json(item);
@@ -2538,6 +2538,69 @@ mod tests {
         );
         assert!(caught_up.events.is_empty());
         assert_eq!(caught_up.next_row_id, batch.next_row_id);
+    }
+
+    #[tokio::test]
+    async fn agent_event_names_what_a_group_system_message_did_and_to_whom() {
+        let directory = tempfile::tempdir().unwrap();
+        let identity_number = "39869091";
+        let path = directory.path().join(identity_number).join("mixin.db");
+        let database = MixinDatabase::connect_at(&path).await.unwrap();
+        for (user_id, identity, name) in [
+            ("account-id", identity_number, "Me"),
+            ("friend-id", "7000", "Friend"),
+        ] {
+            crate::db::query(
+                r#"INSERT INTO users (
+                       user_id, identity_number, relationship, full_name, avatar_url, phone,
+                       is_verified, created_at, mute_until, has_pin, biography, is_scam,
+                       code_url, code_id, is_deactivated
+                   ) VALUES (?, ?, NULL, ?, '', '', FALSE, 0, 0, FALSE, '', FALSE, '', '', FALSE)"#,
+            )
+            .bind(user_id)
+            .bind(identity)
+            .bind(name)
+            .execute(&database.user_dao.0)
+            .await
+            .unwrap();
+        }
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, owner_id, category, name, created_at, status, mute_until) VALUES \
+             ('group', 'friend-id', 'GROUP', 'Dev', 0, 0, 0)",
+        )
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "joined".into(),
+                conversation_id: "group".into(),
+                user_id: "friend-id".into(),
+                category: "SYSTEM_CONVERSATION".into(),
+                content: Some("".into()),
+                status: MessageStatus::Delivered,
+                created_at: Utc::now().naive_utc(),
+                action: Some("ADD".into()),
+                participant_id: Some("friend-id".into()),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        database.close().await;
+        let source = McpSource::ReadOnly(Arc::new(
+            ReadOnlyMcpSource::open(directory.path(), identity_number.to_owned())
+                .await
+                .unwrap(),
+        ));
+
+        let batch = source.agent_event_batch(0, 200).await.unwrap();
+
+        let message = &batch.events[0].data["message"];
+        assert_eq!(message["category"], "SYSTEM_CONVERSATION");
+        assert_eq!(message["action"], "ADD");
+        assert_eq!(message["participant_id"], "friend-id");
+        assert_eq!(message["participant_full_name"], "Friend");
     }
 
     async fn read_only_test_source() -> (tempfile::TempDir, Arc<ReadOnlyMcpSource>) {
