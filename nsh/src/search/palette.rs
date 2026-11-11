@@ -192,6 +192,7 @@ impl Palette {
             when: When::Always,
             repeat: true,
             pass_through: false,
+            ..Default::default()
         };
         on_key_with("tab", always(), move |_| move_highlight(true));
         #[cfg(target_os = "macos")]

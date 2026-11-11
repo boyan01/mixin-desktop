@@ -1,4 +1,4 @@
-const APP_VERSION: &str = "5.1.2";
+const APP_VERSION: &str = "7.0.0";
 const APP_BUILD_NUMBER: &str = "557";
 
 pub fn provisioning_app_version() -> String {
@@ -81,8 +81,8 @@ mod tests {
 
     #[test]
     fn user_agent_matches_flutter_format() {
-        assert!(generate_user_agent().starts_with("Mixin/5.1.2 (Flutter "));
-        assert_eq!(provisioning_app_version(), "5.1.2(557)");
+        assert!(generate_user_agent().starts_with("Mixin/7.0.0 (Flutter "));
+        assert_eq!(provisioning_app_version(), "7.0.0(557)");
     }
 }
 

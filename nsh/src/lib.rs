@@ -229,6 +229,14 @@ fn status_screen(content: View) -> View {
 }
 
 async fn launch(i18n: i18n::I18n, clients: Clients) -> ClientResult<Phase> {
+    #[cfg(target_os = "android")]
+    let desktop = {
+        let directory = data_dir().ok_or_else(|| {
+            ClientError::Internal("Android host has no private data directory".to_string())
+        })?;
+        runtime::run(DesktopClient::open_in(directory)).await?
+    };
+    #[cfg(not(target_os = "android"))]
     let desktop = runtime::run(DesktopClient::open()).await?;
     clients.media.replace(Some(desktop.media()));
     clients.settings.replace(Some(desktop.settings()));

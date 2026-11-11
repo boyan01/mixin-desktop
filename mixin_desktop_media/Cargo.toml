@@ -3,6 +3,9 @@ name = "mixin_desktop_media"
 version = "0.1.0"
 edition = "2021"
 
+[build-dependencies]
+cc = "1"
+
 [dependencies]
 base64 = "0.22"
 blurhash = { version = "=0.2.3", default-features = false }

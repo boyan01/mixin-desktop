@@ -29,6 +29,24 @@ const FLUTTER_MACOS_BUNDLE_ID: &str = "one.mixin.messenger.desktop";
 
 static DATA_DIRECTORY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
+/// Sets the host's private data directory before any database or log opens.
+pub fn configure_data_directory(path: PathBuf) -> anyhow::Result<()> {
+    configure_directory(&DATA_DIRECTORY, path)
+}
+
+fn configure_directory(
+    directory: &OnceLock<Result<PathBuf, String>>,
+    path: PathBuf,
+) -> anyhow::Result<()> {
+    if !path.is_absolute() {
+        return Err(anyhow!("application data directory must be absolute"));
+    }
+    match directory.get_or_init(|| Ok(path.clone())) {
+        Ok(current) if current == &path => Ok(()),
+        _ => Err(anyhow!("application data directory is already initialized")),
+    }
+}
+
 pub(crate) fn app_database_path(file_name: &str) -> anyhow::Result<PathBuf> {
     Ok(data_directory()?.join(file_name))
 }
@@ -149,6 +167,24 @@ fn platform_data_directory() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_directory_cannot_switch_after_initialization() {
+        let directory = OnceLock::new();
+        let first = env::temp_dir().join("mixin-first");
+        let second = env::temp_dir().join("mixin-second");
+        configure_directory(&directory, first.clone()).unwrap();
+        configure_directory(&directory, first.clone()).unwrap();
+        assert!(configure_directory(&directory, second).is_err());
+        assert_eq!(directory.get(), Some(&Ok(first)));
+    }
+
+    #[test]
+    fn relative_directory_is_rejected_without_initializing_storage() {
+        let directory = OnceLock::new();
+        assert!(configure_directory(&directory, PathBuf::from("relative")).is_err());
+        assert!(directory.get().is_none());
+    }
 
     #[test]
     fn account_path_rejects_unsafe_identity_numbers() {

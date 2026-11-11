@@ -1,8 +1,8 @@
 {
   "name": "Mixin Messenger",
   "id": "one.mixin.messenger.nsh",
-  "version": "0.1.0",
-  "build": 1,
+  "version": "7.0.0",
+  "build": 2,
   "rust": ".",
   "root": "App",
   "theme": "theme.json",

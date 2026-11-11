@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use futures::{Stream, StreamExt as _};
 use mixin_desktop_core::network::ProxySettings;
-use mixin_desktop_core::runtime::{desktop::DesktopRuntime, logging};
+use mixin_desktop_core::runtime::desktop::DesktopRuntime;
+#[cfg(not(target_os = "android"))]
+use mixin_desktop_core::runtime::logging;
 use tokio::sync::OnceCell;
 
 use crate::{AccountClient, ClientResult, HttpResponseItem, LoginClient, ProxySettingsItem};
@@ -26,7 +28,16 @@ static DESKTOP_RUNTIME: OnceCell<Arc<DesktopRuntime>> = OnceCell::const_new();
 static MEDIA_CLIENT: std::sync::OnceLock<Arc<MediaClient>> = std::sync::OnceLock::new();
 
 impl DesktopClient {
+    /// Opens in a native host's private directory, fixed for the process lifetime.
+    pub async fn open_in(directory: std::path::PathBuf) -> ClientResult<Self> {
+        mixin_desktop_core::db::path::configure_data_directory(directory)?;
+        Self::open().await
+    }
+
     pub async fn open() -> ClientResult<Self> {
+        // Android's native host installs the process Logcat logger before Rust
+        // mounts. A second global logger would prevent the runtime from opening.
+        #[cfg(not(target_os = "android"))]
         logging::init(
             "Mixin".to_string(),
             env!("CARGO_PKG_VERSION").to_string(),
