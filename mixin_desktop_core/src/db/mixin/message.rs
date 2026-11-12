@@ -27,6 +27,60 @@ mod quote_projection_tests;
 #[cfg(test)]
 mod notification_tests;
 
+fn unread_incoming_where(message_ids: Option<&[String]>) -> String {
+    let mut sql = String::from(
+        "conversation_id = ? AND user_id != ? AND status IN ('SENT', 'DELIVERED')",
+    );
+    if let Some(ids) = message_ids {
+        sql.push_str(" AND message_id IN (");
+        sql.push_str(&expand_var(ids.len()));
+        sql.push(')');
+    }
+    sql
+}
+
+async fn unread_exists(
+    pool: &crate::db::Pool,
+    conversation_id: &str,
+    current_user_id: &str,
+    message_ids: Option<&[String]>,
+) -> Result<bool, Error> {
+    let sql = format!(
+        "SELECT EXISTS(SELECT 1 FROM messages WHERE {})",
+        unread_incoming_where(message_ids)
+    );
+    let mut query = crate::db::query_scalar::<bool>(sqlx::AssertSqlSafe(sql))
+        .bind(conversation_id)
+        .bind(current_user_id);
+    if let Some(ids) = message_ids {
+        for id in ids {
+            query = query.bind(id);
+        }
+    }
+    Ok(query.fetch_one(pool).await?)
+}
+
+async fn unread_update(
+    transaction: &mut crate::db::Transaction<'_>,
+    conversation_id: &str,
+    current_user_id: &str,
+    message_ids: Option<&[String]>,
+) -> Result<Vec<String>, Error> {
+    let sql = format!(
+        "UPDATE messages SET status = 'READ' WHERE {} RETURNING message_id",
+        unread_incoming_where(message_ids)
+    );
+    let mut query = crate::db::query_scalar::<String>(sqlx::AssertSqlSafe(sql))
+        .bind(conversation_id)
+        .bind(current_user_id);
+    if let Some(ids) = message_ids {
+        for id in ids {
+            query = query.bind(id);
+        }
+    }
+    Ok(query.fetch_all(&mut **transaction).await?)
+}
+
 #[derive(Clone)]
 pub struct MessageDao(pub(crate) crate::db::Pool);
 
@@ -673,14 +727,41 @@ LIMIT ?4
         conversation_id: &str,
         current_user_id: &str,
     ) -> Result<(bool, bool), Error> {
-        let has_unread = crate::db::query_scalar::<bool>(
-            "SELECT EXISTS(SELECT 1 FROM messages WHERE conversation_id = ? AND user_id != ? \
-             AND status IN ('SENT', 'DELIVERED'))",
-        )
-        .bind(conversation_id)
-        .bind(current_user_id)
-        .fetch_one(&self.0)
-        .await?;
+        self.mark_unread_read(conversation_id, current_user_id, None)
+            .await
+    }
+
+    /// Marks the given incoming messages read and enqueues READ receipt jobs.
+    /// Message IDs that are missing, already read, sent by the current user, or
+    /// in another conversation are ignored.
+    pub async fn mark_messages_read(
+        &self,
+        conversation_id: &str,
+        current_user_id: &str,
+        message_ids: &[String],
+    ) -> Result<(bool, bool), Error> {
+        self.mark_unread_read(conversation_id, current_user_id, Some(message_ids))
+            .await
+    }
+
+    async fn mark_unread_read(
+        &self,
+        conversation_id: &str,
+        current_user_id: &str,
+        message_ids: Option<&[String]>,
+    ) -> Result<(bool, bool), Error> {
+        if let Some(ids) = message_ids {
+            if ids.is_empty() {
+                return Ok((false, false));
+            }
+            if ids.len() > MARK_LIMIT {
+                return Err(anyhow::anyhow!(
+                    "mark_messages_read supports at most {MARK_LIMIT} message_ids"
+                )
+                .into());
+            }
+        }
+        let has_unread = unread_exists(&self.0, conversation_id, current_user_id, message_ids).await?;
 
         if !has_unread {
             let last_read_message_id = crate::db::query_scalar::<String>(
@@ -728,14 +809,7 @@ LIMIT ?4
         }
 
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        let message_ids = crate::db::query_scalar::<String>(
-            "UPDATE messages SET status = 'READ' WHERE conversation_id = ? AND user_id != ? \
-             AND status IN ('SENT', 'DELIVERED') RETURNING message_id",
-        )
-        .bind(conversation_id)
-        .bind(current_user_id)
-        .fetch_all(&mut *transaction)
-        .await?;
+        let message_ids = unread_update(&mut transaction, conversation_id, current_user_id, message_ids).await?;
         let messages_changed = !message_ids.is_empty();
 
         let now = Utc::now().timestamp();
@@ -4650,6 +4724,88 @@ mod tests {
                 .unwrap(),
             (false, false)
         );
+    }
+
+    #[tokio::test]
+    async fn mark_messages_read_only_updates_requested_unread_ids() {
+        let (_directory, database) = test_database().await;
+        let now = Utc::now();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("other".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        for (id, created_at) in [
+            ("first", now.naive_utc()),
+            ("second", now.naive_utc() + chrono::Duration::seconds(1)),
+        ] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: id.into(),
+                    user_id: "other".into(),
+                    status: MessageStatus::Delivered,
+                    created_at,
+                    ..message(id)
+                })
+                .await
+                .unwrap();
+        }
+
+        assert_eq!(
+            database
+                .message_dao
+                .mark_messages_read("conversation", "me", &["first".into(), "missing".into()])
+                .await
+                .unwrap(),
+            (true, true)
+        );
+
+        let statuses: Vec<(String, MessageStatus)> = crate::db::query_as(
+            "SELECT message_id, status FROM messages ORDER BY message_id",
+        )
+        .fetch_all(&database.message_dao.0)
+        .await
+        .unwrap();
+        assert_eq!(
+            statuses,
+            [
+                ("first".into(), MessageStatus::Read),
+                ("second".into(), MessageStatus::Delivered),
+            ]
+        );
+        let job_count: i64 = crate::db::query_scalar("SELECT COUNT(1) FROM jobs")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(job_count, 2);
+
+        assert_eq!(
+            database
+                .message_dao
+                .mark_conversation_read("conversation", "me")
+                .await
+                .unwrap(),
+            (true, true)
+        );
+        let second: MessageStatus =
+            crate::db::query_scalar("SELECT status FROM messages WHERE message_id = 'second'")
+                .fetch_one(&database.message_dao.0)
+                .await
+                .unwrap();
+        assert_eq!(second, MessageStatus::Read);
     }
 
     #[tokio::test]

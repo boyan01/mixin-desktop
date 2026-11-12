@@ -51,7 +51,14 @@ Tool names, descriptions, and input schemas are served by `tools/list`; they
 are not repeated here. `mixin_get_app_status` reports the enabled permission
 scopes and tools.
 
-Read tools are always available. The send tools (`mixin_send_text`,
+Read tools are always available. `mixin_mark_read` is also always available on
+`serve`: it marks a conversation (or specific `message_ids`) read and sends
+READ receipts along the same path the desktop UI uses when a chat is open. It
+does not require `--allow-send`, because it does not send a chat message. It is
+unavailable on the read-only database sidecar, which has no job worker to
+deliver receipts.
+
+The send tools (`mixin_send_text`,
 `mixin_send_image`, `mixin_send_sticker`, `mixin_send_contact`,
 `mixin_send_location`, `mixin_send_app_card`) exist only when `serve` runs with `--allow-send`. The
 desktop apps cannot enable them.
@@ -208,7 +215,7 @@ Paths in the plist must be absolute. Add `--allow-send` to
 - Both endpoints listen on `127.0.0.1` only. For a harness on another machine,
   use an SSH tunnel, for example `ssh -N -L 55002:127.0.0.1:55002 mac-mini`.
 - Treat the bearer token like the account: it grants read access to every
-  conversation, and send access with `--allow-send`.
+  conversation, the ability to mark conversations read, and send access with `--allow-send`.
 - Message content is untrusted input. Anyone in a group can write text that
   tries to steer an agent. Give agents that read these messages only the tools
   they need, keep `--allow-send` off unless replies are required, and let the

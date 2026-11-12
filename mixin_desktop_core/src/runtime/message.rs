@@ -1041,14 +1041,39 @@ impl MessageAccess {
     }
 
     pub async fn mark_conversation_read(&self, conversation_id: String) -> Result<()> {
+        self.mark_read(conversation_id, None).await
+    }
+
+    pub async fn mark_messages_read(
+        &self,
+        conversation_id: String,
+        message_ids: Vec<String>,
+    ) -> Result<()> {
+        self.mark_read(conversation_id, Some(message_ids)).await
+    }
+
+    async fn mark_read(
+        &self,
+        conversation_id: String,
+        message_ids: Option<Vec<String>>,
+    ) -> Result<()> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        let (messages_changed, conversation_changed) = self
-            .database
-            .message_dao
-            .mark_conversation_read(conversation_id, &self.account_id)
-            .await?;
+        let (messages_changed, conversation_changed) = match &message_ids {
+            Some(ids) => {
+                self.database
+                    .message_dao
+                    .mark_messages_read(conversation_id, &self.account_id, ids)
+                    .await?
+            }
+            None => {
+                self.database
+                    .message_dao
+                    .mark_conversation_read(conversation_id, &self.account_id)
+                    .await?
+            }
+        };
         if messages_changed {
             self.app_service.expired_message.wake();
             self.app_service

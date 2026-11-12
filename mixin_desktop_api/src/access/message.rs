@@ -666,4 +666,15 @@ impl MessageAccess {
     pub async fn mark_conversation_read(&self, conversation_id: String) -> Result<(), ClientError> {
         Ok(self.inner.mark_conversation_read(conversation_id).await?)
     }
+
+    pub async fn mark_messages_read(
+        &self,
+        conversation_id: String,
+        message_ids: Vec<String>,
+    ) -> Result<(), ClientError> {
+        Ok(self
+            .inner
+            .mark_messages_read(conversation_id, message_ids)
+            .await?)
+    }
 }

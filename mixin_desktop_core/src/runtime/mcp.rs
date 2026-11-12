@@ -1086,6 +1086,10 @@ impl McpService {
                 tool_router.disable_route(name);
             }
         }
+        // Receipts need the account job worker; the database sidecar has none.
+        if state.source.is_read_only() {
+            tool_router.disable_route("mixin_mark_read");
+        }
         Self { state, tool_router }
     }
 
@@ -1618,6 +1622,46 @@ impl McpService {
             .map_err(|error| error.to_string())
     }
 
+    #[tool(
+        description = "Mark incoming messages in a conversation as read and send READ receipts to the senders. If message_ids is omitted or empty, mark the conversation read up to the latest incoming message. This is a receipt, not a chat message, and does not require the message_send scope."
+    )]
+    async fn mixin_mark_read(
+        &self,
+        Parameters(input): Parameters<MarkReadInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let id = require_non_empty(input.conversation_id, "conversation_id")?;
+            let runtime = self.state.source.runtime()?;
+            if self
+                .state
+                .source
+                .conversations_by_ids(vec![id.clone()])
+                .await?
+                .is_empty()
+            {
+                return Err(anyhow!("conversation not found"));
+            }
+            let message_ids = validate_filter(input.message_ids, "message_ids", 999)?;
+            if message_ids.is_empty() {
+                runtime
+                    .message_access()
+                    .mark_conversation_read(id.clone())
+                    .await?;
+            } else {
+                runtime
+                    .message_access()
+                    .mark_messages_read(id.clone(), message_ids)
+                    .await?;
+            }
+            Ok(json!({"updated": true, "conversation_id": id}))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
     #[tool(description = "Get the current draft text. Does not send.")]
     async fn mixin_get_conversation_draft(
         &self,
@@ -1973,6 +2017,13 @@ struct ConversationIdInput {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct MarkReadInput {
+    conversation_id: String,
+    /// If omitted or empty, mark the conversation read up to the latest incoming message.
+    message_ids: Option<Vec<String>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct CircleIdInput {
     circle_id: String,
 }
@@ -2141,6 +2192,9 @@ fn enabled_capabilities(state: &ServerState) -> Vec<&'static str> {
         "mixin_resolve_conversation_participant",
         "mixin_list_circles",
     ];
+    if !state.source.is_read_only() {
+        capabilities.push("mixin_mark_read");
+    }
     if settings.draft_tools_enabled {
         capabilities.extend([
             "mixin_get_conversation_draft",
@@ -2394,7 +2448,7 @@ mod tests {
     fn tool_router_builds_object_output_schemas_for_every_tool() {
         let tools = McpService::tool_router().list_all();
 
-        assert_eq!(tools.len(), 24);
+        assert_eq!(tools.len(), 25);
         // mixin_read_attachment returns image content instead of structured output.
         for tool in tools
             .into_iter()
