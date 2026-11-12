@@ -575,6 +575,13 @@ impl MessageAccess {
         if card.get("action").and_then(serde_json::Value::as_str) == Some("") {
             card.insert("action".into(), serde_json::Value::Null);
         }
+        // Shared cards may be forwarded anywhere, so only link buttons survive;
+        // a non-shareable card may also carry `input:` buttons, which the client
+        // answers by sending the text in the card's own conversation.
+        let shareable = card
+            .get("shareable")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
         if card
             .get("actions")
             .and_then(serde_json::Value::as_array)
@@ -583,7 +590,7 @@ impl MessageAccess {
                     action
                         .get("action")
                         .and_then(serde_json::Value::as_str)
-                        .is_none_or(|action| !is_shareable_app_card_action(action))
+                        .is_none_or(|action| !is_sendable_app_card_action(action, shareable))
                 })
             })
         {
@@ -1234,6 +1241,13 @@ fn can_recall_message(
     }
 }
 
+fn is_sendable_app_card_action(action: &str, shareable: bool) -> bool {
+    if let Some(content) = action.strip_prefix("input:") {
+        return !shareable && !content.trim().is_empty();
+    }
+    is_shareable_app_card_action(action)
+}
+
 fn is_shareable_app_card_action(action: &str) -> bool {
     let Ok(uri) = url::Url::parse(action) else {
         return false;
@@ -1484,6 +1498,15 @@ mod bot_recipient_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn input_card_actions_require_non_shareable_card() {
+        assert!(super::is_sendable_app_card_action("input:yes", false));
+        assert!(!super::is_sendable_app_card_action("input:yes", true));
+        assert!(!super::is_sendable_app_card_action("input:  ", false));
+        assert!(super::is_sendable_app_card_action("https://example.com", true));
+        assert!(super::is_sendable_app_card_action("https://example.com", false));
+    }
+
     use super::{can_recall_message, normalized_quote_content, validate_forward_source};
     use std::path::PathBuf;
 

@@ -1891,7 +1891,7 @@ impl McpService {
     }
 
     #[tool(
-        description = "Send an app card on behalf of a Mixin bot. card needs app_id (the bot's app ID), title, and description. Add buttons with actions: [{label, color, action: https URL}], which also requires icon_url; non-shareable button URLs drop all buttons. Requires the message_send scope."
+        description = "Send an app card on behalf of a Mixin bot. card needs app_id (the bot's app ID), title, and description. Add buttons with actions: [{label, color, action}], which also requires icon_url. action is an https URL, or \"input:<text>\" to make the tapping user send <text> in this conversation; input buttons need card.shareable set to false. Any other action drops all buttons. Requires the message_send scope."
     )]
     async fn mixin_send_app_card(
         &self,
