@@ -14,8 +14,8 @@ use super::{
     state::{feedback_transition, inset_ring, ring},
     tokens::{
         TextRole, Typography, accent, button_height, fg_on_accent, fg_primary, fg_secondary,
-        field_height, focus_ring, icon_sm, input_border, input_fill, opacity_disabled, radius_md,
-        radius_sm, space_md, space_sm, space_xs, state_hover, state_pressed,
+        field_height, icon_sm, input_border, input_fill, opacity_disabled, radius_md, radius_sm,
+        space_md, space_sm, space_xs, state_hover, state_pressed,
     },
 };
 use crate::motion;
@@ -29,7 +29,7 @@ fn text_input() -> Input {
 }
 
 pub(crate) fn field() -> Input {
-    // A soft filled plate, as in the search pill; the border only appears on focus.
+    // A soft filled plate, as in the search pill; focus does not add a border.
     feedback_transition(text_input())
         .min_h(field_height())
         .px(space_md())
@@ -39,7 +39,6 @@ pub(crate) fn field() -> Input {
         .rounded(radius_md())
         .bg(input_fill)
         .hover(|s| s.border_color(input_border))
-        .focus(|s| s.border_color(focus_ring))
 }
 
 /// A `field` of several lines. Size it at the call site.

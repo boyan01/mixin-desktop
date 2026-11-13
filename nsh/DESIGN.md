@@ -137,11 +137,12 @@ every surface, and a selected row stacks on its card.
 | Selected | `state_selected` | black 8% | white 6% |
 | Pressed | `state_pressed` | black 12% | white 10% |
 | Disabled | `opacity-disabled` | 0.4 | 0.4 |
-| Focus | `focus_ring`, `focus-ring-width` | 2pt outline | 2pt outline |
+| Focus | `focus_ring`, `focus-ring-width` | transparent, 0pt | transparent, 0pt |
 
 An accent fill uses `opacity-solid-hover` and `opacity-solid-pressed` instead.
-Inside a clipping `card`, the ring is drawn inward. A focusable surface that is not
-a component takes `.focus(ui::ring)`.
+Focus remains real and keyboard navigation stays enabled; the shared ring tokens
+suppress focus outlines, including controls with part classes. Focus must not
+change selected fills, link colors or accent colors. Text inputs retain their caret.
 
 ## Components
 
@@ -193,7 +194,7 @@ same 16pt composer radius and compact row geometry.
 Document attachments fit their filename/size up to the card-width cap; pictures retain
 square thumbnails. Tooltips and accessible names explain hidden toolbar labels.
 The editor keeps a neutral border while focused; its caret indicates text focus,
-while individual keyboard controls retain their focus rings. Original-image and
+and keyboard controls use the shared outline-free focus treatment. Original-image and
 ZIP choices are conditional icon toggles beside the attachment previews. Original
 images light the image control; ZIP appears for multiple attachments. ZIP keeps
 original files, temporarily locks image quality and folds the previews into one
