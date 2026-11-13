@@ -151,7 +151,11 @@ pub(super) fn notice(
                     .map(str::to_owned)
             });
             content = content.max_w(ui::notice_max_width());
+            // The command is a centered flex row; constrain its text as well as
+            // the chip so native single-line truncation receives a finite width.
             let line = text(description)
+                .min_w_0()
+                .max_w(relative(1.0))
                 .number_of_lines(1)
                 .text_color(ui::notice_foreground);
             if let Some((target, id)) = target.zip(id).filter(|(_, id)| !id.is_empty()) {
@@ -161,8 +165,11 @@ pub(super) fn notice(
                         .py_0()
                         .min_h_0()
                         .min_w_0()
+                        .max_w(relative(1.0))
+                        .text_size(move || appearance.secondary_size())
+                        .text_color(ui::notice_foreground)
                         .on_press(move || target.set(Some(id.clone())))
-                        .child(line),
+                        .child(line.flex_1()),
                 );
             } else {
                 content = content.child(line);
