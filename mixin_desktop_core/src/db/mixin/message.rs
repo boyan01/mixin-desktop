@@ -28,9 +28,8 @@ mod quote_projection_tests;
 mod notification_tests;
 
 fn unread_incoming_where(message_ids: Option<&[String]>) -> String {
-    let mut sql = String::from(
-        "conversation_id = ? AND user_id != ? AND status IN ('SENT', 'DELIVERED')",
-    );
+    let mut sql =
+        String::from("conversation_id = ? AND user_id != ? AND status IN ('SENT', 'DELIVERED')");
     if let Some(ids) = message_ids {
         sql.push_str(" AND message_id IN (");
         sql.push_str(&expand_var(ids.len()));
@@ -761,7 +760,8 @@ LIMIT ?4
                 .into());
             }
         }
-        let has_unread = unread_exists(&self.0, conversation_id, current_user_id, message_ids).await?;
+        let has_unread =
+            unread_exists(&self.0, conversation_id, current_user_id, message_ids).await?;
 
         if !has_unread {
             let last_read_message_id = crate::db::query_scalar::<String>(
@@ -809,7 +809,13 @@ LIMIT ?4
         }
 
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        let message_ids = unread_update(&mut transaction, conversation_id, current_user_id, message_ids).await?;
+        let message_ids = unread_update(
+            &mut transaction,
+            conversation_id,
+            current_user_id,
+            message_ids,
+        )
+        .await?;
         let messages_changed = !message_ids.is_empty();
 
         let now = Utc::now().timestamp();
@@ -4773,12 +4779,11 @@ mod tests {
             (true, true)
         );
 
-        let statuses: Vec<(String, MessageStatus)> = crate::db::query_as(
-            "SELECT message_id, status FROM messages ORDER BY message_id",
-        )
-        .fetch_all(&database.message_dao.0)
-        .await
-        .unwrap();
+        let statuses: Vec<(String, MessageStatus)> =
+            crate::db::query_as("SELECT message_id, status FROM messages ORDER BY message_id")
+                .fetch_all(&database.message_dao.0)
+                .await
+                .unwrap();
         assert_eq!(
             statuses,
             [

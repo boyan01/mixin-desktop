@@ -1503,8 +1503,14 @@ mod tests {
         assert!(super::is_sendable_app_card_action("input:yes", false));
         assert!(!super::is_sendable_app_card_action("input:yes", true));
         assert!(!super::is_sendable_app_card_action("input:  ", false));
-        assert!(super::is_sendable_app_card_action("https://example.com", true));
-        assert!(super::is_sendable_app_card_action("https://example.com", false));
+        assert!(super::is_sendable_app_card_action(
+            "https://example.com",
+            true
+        ));
+        assert!(super::is_sendable_app_card_action(
+            "https://example.com",
+            false
+        ));
     }
 
     use super::{can_recall_message, normalized_quote_content, validate_forward_source};
