@@ -5,7 +5,7 @@ mod files;
 mod forms;
 mod image_editor;
 mod input;
-mod mentions;
+pub(crate) mod mentions;
 pub(crate) mod sticker_store;
 pub(crate) mod stickers;
 pub(crate) mod surface;

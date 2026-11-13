@@ -8,6 +8,7 @@ mod composer;
 mod fixtures;
 mod inspector;
 mod loading;
+mod mentions;
 mod messages;
 mod posts;
 mod sidebar;
@@ -34,6 +35,11 @@ struct Scene {
 }
 
 const SCENES: &[Scene] = &[
+    Scene {
+        name: "mentions",
+        actions: mentions::ACTIONS,
+        mount: mentions::scene,
+    },
     Scene {
         name: "snapshot-transfer",
         actions: button_pages::TRANSFER_DETAIL_ACTIONS,

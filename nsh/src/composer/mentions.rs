@@ -147,16 +147,11 @@ pub(crate) fn mentions(
                     _ => {}
                 }
             });
-            view()
+            surface()
                 .style_when(
                     move || !picking.get() && !failed.get(),
                     |style| style.hidden(),
                 )
-                .role(AccessibilityRole::Listbox)
-                .min_h_0()
-                .border_b_1()
-                .border_color(ui::border)
-                .bg(ui::surface_popover)
                 .child(when(
                     move || searching.get() && rows.with(Vec::is_empty),
                     move || {
@@ -236,6 +231,48 @@ pub(crate) fn mentions(
                     .h(move || (row_height * rows.with(Vec::len) as f32).min(max_height)),
                 )
         },
+    )
+}
+
+/// Keep the list and its rows transparent above the shared platform material.
+fn surface() -> View {
+    ui::glass(view())
+        .role(AccessibilityRole::Listbox)
+        .min_h_0()
+        .rounded(ui::radius_lg())
+        .overflow_hidden()
+        .text_color(ui::fg_primary)
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview() -> View {
+    let selected = signal(0_usize);
+    let rows = [
+        "Alice @10001",
+        "张三 @10002",
+        "Design team @10003",
+        "Bob @10004",
+        "Carol @10005",
+        "David @10006",
+    ];
+    let row_height = ui::button_height_small() + ui::space_lg();
+    surface().child(
+        virtual_list(
+            move || rows.len(),
+            move |at| {
+                ui::option_row(move || selected.get() == at.index())
+                    .child(ui::avatar_view(
+                        move || format!("00000000-0000-4000-8000-{:012}", at.index() + 1),
+                        move || rows[at.index()].into(),
+                        String::new,
+                        ui::AvatarSize::Compact,
+                    ))
+                    .child(text(move || rows[at.index()]).text_role(ui::TextRole::Body))
+                    .on_press_down(move |_: &()| selected.set(at.index()))
+            },
+        )
+        .estimated_item_size(row_height)
+        .h(row_height * 3.5),
     )
 }
 
