@@ -7,6 +7,56 @@ use nsh_core::prelude::*;
 
 mod copy;
 
+/// One message-copy command shared by the editor fallback and non-editing keys.
+pub(super) fn keyboard(actions: Actions, conversation: Stored<String>, enabled: Memo<bool>) {
+    let window = nsh_core::element::desktop::current_window();
+    let enabled = computed(move || {
+        enabled.get()
+            && window
+                .state()
+                .is_none_or(|state| state.focused && state.visible)
+    });
+    let revision = signal(0_u64);
+    effect(move || {
+        if !enabled.get() {
+            revision.update(|value| *value = value.wrapping_add(1));
+        }
+    });
+    actions.text_selection.enable(enabled);
+    let copy = move || {
+        if !actions.owner.is_live() || !enabled.get_untracked() {
+            return;
+        }
+        if let Some(text) = actions.text_selection.keyboard() {
+            set_clipboard(text);
+        } else {
+            let ticket = revision.get_untracked();
+            let selected = actions.selected.get_untracked();
+            copy::selected_if(actions, conversation.get(), move || {
+                enabled.get_untracked()
+                    && revision.get_untracked() == ticket
+                    && actions.selected.get_untracked() == selected
+            });
+        }
+    };
+    provide_context(CopyFallback(std::rc::Rc::new(copy)));
+    effect(move || {
+        if enabled.get() {
+            on_key_with(
+                "mod+c",
+                KeyOptions {
+                    when: nsh_core::keymap::When::NotEditing,
+                    ..Default::default()
+                },
+                move |_| copy(),
+            );
+        }
+    });
+}
+
+#[derive(Clone)]
+pub(super) struct CopyFallback(pub std::rc::Rc<dyn Fn()>);
+
 pub(super) fn selection_bar(actions: Actions, conversation_id: Stored<String>) -> impl IntoElement {
     selection(actions, conversation_id, false)
 }

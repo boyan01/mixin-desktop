@@ -138,6 +138,14 @@ pub(crate) fn screen(
     let attentive = computed(move || {
         unobstructed.get() && lifecycle() == Lifecycle::Active && !security.blocked()
     });
+    let pane = use_context::<panes::Visibility>();
+    let copy_enabled = computed(move || {
+        attentive.get()
+            && side.get().is_none()
+            && pane.is_none_or(|pane| pane.0.get())
+            && chat_navigation.selected_id.get().as_deref() == Some(detail_id.get().as_str())
+    });
+    message_selection::keyboard(actions, detail_id, copy_enabled);
     let unread = unread::Unread::mount(
         account.clone(),
         &conversation,

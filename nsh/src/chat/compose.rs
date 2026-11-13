@@ -170,6 +170,9 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             });
         }),
     );
+    if let Some(copy) = use_context::<super::message_selection::CopyFallback>() {
+        input.on_copy_fallback(move || (copy.0)());
+    }
     let focus_pending = signal(false);
     effect(move || {
         let (_, covered, panel_closed) = focus_layout.get();

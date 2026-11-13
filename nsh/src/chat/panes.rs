@@ -9,6 +9,10 @@ use crate::ui;
 /// Says that a chat has its first rows in place.
 pub(crate) type Ready = Rc<dyn Fn()>;
 
+/// Whether this mounted conversation is the pane actually shown.
+#[derive(Clone, Copy)]
+pub(super) struct Visibility(pub Memo<bool>);
+
 /// How long a switch waits for the new chat before showing it unready.
 const READY_BOUND: Duration = Duration::from_millis(400);
 
@@ -96,10 +100,11 @@ pub(crate) fn panes<E: IntoElement + 'static>(
                         }
                     })
                     .child(match conversation {
-                        Some(conversation) => {
-                            ui::owned(id, move || render(conversation.clone(), ready.clone()))
-                                .into_element()
-                        }
+                        Some(conversation) => ui::owned(id, move || {
+                            provide_context(Visibility(visible));
+                            render(conversation.clone(), ready.clone())
+                        })
+                        .into_element(),
                         None => view().into_element(),
                     })
             },

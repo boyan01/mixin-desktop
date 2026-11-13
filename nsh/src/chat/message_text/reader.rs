@@ -15,9 +15,11 @@ const MESSAGE_LINE_HEIGHT: LineHeight = LineHeight::Multiple(1.4);
 const HIGHLIGHT_CLASS: &str = "bg-highlight text-foreground";
 
 struct Current {
+    row_owner: Owner,
     root: Option<String>,
     id: String,
     text: String,
+    keyboard_valid: bool,
 }
 
 /// One current presentation selection per action surface, never a per-row cache.
@@ -25,6 +27,7 @@ struct Current {
 pub(in crate::chat) struct Selection {
     owner: Owner,
     current: Stored<Option<Current>>,
+    enabled: Stored<Option<Memo<bool>>>,
 }
 
 impl Selection {
@@ -32,6 +35,7 @@ impl Selection {
         Self {
             owner: Owner::current(),
             current: stored(None),
+            enabled: stored(None),
         }
     }
 
@@ -42,9 +46,47 @@ impl Selection {
         self.current.with(|current| {
             current
                 .as_ref()
-                .filter(|current| current.id == id && current.root.as_deref() == root)
+                .filter(|current| {
+                    current.row_owner.is_live()
+                        && current.id == id
+                        && current.root.as_deref() == root
+                })
                 .map(|current| current.text.clone())
         })
+    }
+
+    pub(in crate::chat) fn keyboard(self) -> Option<String> {
+        if !self.owner.is_live()
+            || !self
+                .enabled
+                .with(|enabled| enabled.is_some_and(|enabled| enabled.get_untracked()))
+        {
+            return None;
+        }
+        self.current.with(|current| {
+            current
+                .as_ref()
+                .filter(|current| current.row_owner.is_live() && current.keyboard_valid)
+                .map(|current| current.text.clone())
+        })
+    }
+
+    pub(in crate::chat) fn enable(self, enabled: Memo<bool>) {
+        self.enabled.replace(Some(enabled));
+        effect(move || {
+            if !enabled.get() {
+                self.invalidate_keyboard();
+            }
+        });
+    }
+
+    fn invalidate_keyboard(self) {
+        // Keep the native selection available to its existing context menu.
+        self.current.try_with(|current| {
+            if let Some(current) = current {
+                current.keyboard_valid = false;
+            }
+        });
     }
 
     /// A message's selection changed: an empty one releases it, if it holds it.
@@ -53,9 +95,13 @@ impl Selection {
         self.current.try_with(|current| {
             if !text.is_empty() {
                 *current = Some(Current {
+                    row_owner: Owner::current(),
                     root: root.map(str::to_owned),
                     id: id.to_owned(),
                     text: text.to_owned(),
+                    keyboard_valid: self
+                        .enabled
+                        .with(|enabled| enabled.is_none_or(|enabled| enabled.get_untracked())),
                 });
             } else if current
                 .as_ref()
@@ -94,6 +140,12 @@ pub(in crate::chat) fn read(
     });
     let room = stored(room.map(|width| SharedString::from(format!("w-[{width}px] h-px"))));
     let selection = actions.text_selection;
+    let changed_id = row.message_id.clone();
+    let changed_root = root.clone();
+    effect(move || {
+        mapped.get();
+        selection.report(&changed_id, changed_root.as_deref(), "");
+    });
     // A recycled or removed row takes its selection with it. Its own stored
     // values are gone by then, so the cleanup keeps plain copies.
     let (released_id, released_root) = (row.message_id.clone(), root.clone());
@@ -240,4 +292,53 @@ fn open_link(actions: Actions, conversation: Stored<String>, url: String) {
             Ok(None) | Err(_) => actions.failed.set(true),
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[component]
+    fn SelectionLifetime() -> impl IntoElement {
+        let first = Selection::new();
+        let second = Selection::new();
+        first.enable(computed(|| true));
+        second.enable(computed(|| true));
+        let (row, ()) = nsh_core::element::create_root(move || {
+            first.report("message", Some("forward"), "first")
+        });
+        cleanup(move || row.dispose());
+        second.report("message", None, "second");
+        assert_eq!(first.keyboard().as_deref(), Some("first"));
+        assert_eq!(second.keyboard().as_deref(), Some("second"));
+        assert!(first.selected("message", None).is_none());
+        assert_eq!(
+            first.selected("message", Some("forward")).as_deref(),
+            Some("first")
+        );
+        first.invalidate_keyboard();
+        assert!(first.keyboard().is_none());
+        assert_eq!(
+            first.selected("message", Some("forward")).as_deref(),
+            Some("first")
+        );
+        // A recycled row must not donate its retained text to a later copy.
+        row.dispose();
+        assert!(first.keyboard().is_none());
+        assert!(first.selected("message", Some("forward")).is_none());
+        assert_eq!(second.keyboard().as_deref(), Some("second"));
+        second.report("message", None, "");
+        assert!(second.keyboard().is_none());
+        view()
+    }
+
+    #[test]
+    fn disposed_rows_and_other_surfaces_cannot_supply_the_current_selection() {
+        let mut app =
+            nsh_testing::Headless::start(nsh_engine::EngineConfig::new(nsh_engine::Root::of::<
+                SelectionLifetime,
+            >()))
+            .unwrap();
+        app.first_render().unwrap();
+    }
 }

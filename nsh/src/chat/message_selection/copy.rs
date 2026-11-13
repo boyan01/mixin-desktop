@@ -13,6 +13,14 @@ use crate::{
 };
 
 pub(super) fn selected(actions: Actions, conversation: String) {
+    selected_if(actions, conversation, || true);
+}
+
+pub(super) fn selected_if(
+    actions: Actions,
+    conversation: String,
+    valid: impl Fn() -> bool + 'static,
+) {
     if actions.busy.get_untracked() {
         return;
     }
@@ -25,7 +33,7 @@ pub(super) fn selected(actions: Actions, conversation: String) {
     actions.failed.set(false);
     actions.task(async move {
         match selection_text(account, &conversation, &ids, actions.i18n).await {
-            Ok(text) => {
+            Ok(text) if valid() => {
                 // NSH exposes clipboard text as a native command without an OS
                 // completion reply. Dispatch only after the query has succeeded;
                 // never read the clipboard back to infer success.
@@ -36,6 +44,7 @@ pub(super) fn selected(actions: Actions, conversation: String) {
                     }
                 });
             }
+            Ok(_) => {}
             Err(_) => actions.failed.set(true),
         }
         actions.busy.set(false);

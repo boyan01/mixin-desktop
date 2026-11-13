@@ -29,6 +29,7 @@ use document::{WireDocument, document, mention_tokens, mentions_differ, refresh_
 
 enum Command {
     Changed,
+    CopyFallback,
     #[cfg(target_os = "macos")]
     CloseWindow,
     Submit,
@@ -55,6 +56,7 @@ pub(crate) struct Input {
     /// takes the key, so a shortcut bound to it never hears it.
     pub escapes: Signal<u64>,
     submit: Stored<Option<Rc<dyn Fn()>>>,
+    copy_fallback: Stored<Option<Rc<dyn Fn()>>>,
     submit_post: Stored<Option<Rc<dyn Fn()>>>,
     deferred: Stored<Vec<Rc<dyn Fn()>>>,
     commands: Stored<mpsc::UnboundedSender<Command>>,
@@ -106,6 +108,7 @@ impl Input {
             keys: signal((0, String::new())),
             escapes: signal(0),
             submit: stored(None),
+            copy_fallback: stored(None),
             submit_post: stored(None),
             deferred: stored(Vec::new()),
             commands: stored(commands),
@@ -134,6 +137,17 @@ impl Input {
                         // before the window can dispose this input's owner.
                         if !self.composing() {
                             window.close();
+                        }
+                    }
+                    Command::CopyFallback => {
+                        if self.session.with(|session| {
+                            session.is_focused() && session.state().selection().empty()
+                        }) {
+                            self.copy_fallback.with(|callback| {
+                                if let Some(callback) = callback {
+                                    callback();
+                                }
+                            });
                         }
                     }
                     Command::Changed => {
@@ -208,6 +222,11 @@ impl Input {
     pub fn composing(self) -> bool {
         self.session.with(|session| session.composing())
     }
+    /// Used only by the focused editor when its own selection is empty.
+    pub fn on_copy_fallback(self, callback: impl Fn() + 'static) {
+        self.copy_fallback.replace(Some(Rc::new(callback)));
+    }
+
     pub fn focus(self) {
         self.session.with(|session| session.focus());
     }
@@ -572,6 +591,16 @@ impl PluginSpec for Behavior {
             let _ = self.commands.send(Command::CloseWindow);
             return true;
         }
+        // The editor key table already consumed this stroke. Returning false
+        // would call its empty copy(), never the message or application menu.
+        if key.mod_key
+            && !(key.shift || key.alt)
+            && key.key.eq_ignore_ascii_case("c")
+            && state.selection().empty()
+        {
+            let _ = self.commands.send(Command::CopyFallback);
+            return true;
+        }
         let plain = !(key.shift || key.alt || key.ctrl || key.meta || key.mod_key);
         if plain
             && self.picker_open.load(Ordering::Relaxed)
@@ -656,5 +685,61 @@ impl PluginSpec for Behavior {
                 .collect::<Vec<_>>()
                 .join(separator),
         )
+    }
+}
+
+#[cfg(test)]
+mod copy_tests {
+    use super::*;
+
+    #[test]
+    fn copy_with_an_empty_editor_selection_routes_to_messages_but_own_selection_stays_native() {
+        for (caret, fallback) in [((5, 5), true), ((0, 5), false)] {
+            let (commands, mut receive) = mpsc::unbounded_channel();
+            let picker_open = Arc::new(AtomicBool::new(false));
+            let session = editor_session("draft", caret, commands.clone(), picker_open.clone());
+            let behavior = Behavior {
+                commands,
+                picker_open,
+            };
+            let mut key = KeyEvent::new("c");
+            key.mod_key = true;
+            key.meta = cfg!(target_os = "macos");
+            key.ctrl = !key.meta;
+            assert_eq!(
+                behavior.handle_key_down(&session.state(), &key, &mut |_| {
+                    panic!("Copy must not mutate the draft")
+                }),
+                fallback
+            );
+            assert!(matches!(receive.try_recv(), Ok(Command::Changed)));
+            assert_eq!(
+                matches!(receive.try_recv(), Ok(Command::CopyFallback)),
+                fallback
+            );
+        }
+    }
+
+    #[test]
+    fn modified_copy_strokes_do_not_trigger_message_copy() {
+        let (commands, mut receive) = mpsc::unbounded_channel();
+        let picker_open = Arc::new(AtomicBool::new(false));
+        let session = editor_session("draft", (5, 5), commands.clone(), picker_open.clone());
+        let behavior = Behavior {
+            commands,
+            picker_open,
+        };
+        for (shift, alt) in [(true, false), (false, true)] {
+            let mut key = KeyEvent::new("c");
+            key.mod_key = true;
+            key.shift = shift;
+            key.alt = alt;
+            assert!(
+                !behavior
+                    .handle_key_down(&session.state(), &key, &mut |_| panic!("Unexpected edit"))
+            );
+            assert!(matches!(receive.try_recv(), Ok(Command::Changed)));
+            assert!(receive.try_recv().is_err());
+        }
     }
 }

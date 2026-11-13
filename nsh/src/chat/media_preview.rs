@@ -190,6 +190,21 @@ impl MediaPreview {
     }
 
     pub fn pinned_selection(self, conversation: Stored<String>) -> impl IntoElement {
+        let navigation = use_context::<crate::navigation::ChatNavigation>();
+        let shell = use_context::<crate::navigation::Navigation>();
+        let security = use_context::<crate::security::Handle>();
+        let pane = use_context::<super::panes::Visibility>();
+        let enabled = computed(move || {
+            navigation.is_none_or(|navigation| {
+                navigation.panel.get() == Some(crate::navigation::Panel::Pinned)
+                    && navigation.selected_id.get().as_deref() == Some(conversation.get().as_str())
+            }) && pane.is_none_or(|pane| pane.0.get())
+                && !shell.is_some_and(|shell| shell.settings.get())
+                && self.animation_visible()
+                && lifecycle() == nsh_core::platform::Lifecycle::Active
+                && !security.is_some_and(|security| security.blocked())
+        });
+        message_selection::keyboard(self.actions, conversation, enabled);
         message_selection::pinned_selection_bar(self.actions, conversation)
     }
 
