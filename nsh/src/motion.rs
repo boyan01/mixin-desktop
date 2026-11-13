@@ -7,6 +7,9 @@ use nsh_core::{
     prelude::*,
 };
 
+/// The pinned preview folds into its toolbar entry.
+pub(crate) const PIN_FOLD_MS: f32 = 220.0;
+
 pub(crate) const FEEDBACK_MS: f32 = 120.0;
 
 /// The reply bar over the composer: M3's medium1 (250 ms) in, short4 (200 ms)

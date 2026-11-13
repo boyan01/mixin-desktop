@@ -586,6 +586,7 @@ fn search_field(
     back: impl Fn() + Copy + 'static,
 ) -> Input {
     let i18n = i18n::current();
+    let composing = signal(false);
     let label = move || {
         if is_picker {
             tr("Search senders", "搜索发送者")
@@ -622,7 +623,15 @@ fn search_field(
                 });
             }
         })
+        .on_composition_change(move |event: &Composition| composing.set(event.composing))
         .on_key_press(move |key: &str| {
+            if composing.get_untracked() {
+                return;
+            }
+            if key == "Escape" {
+                back();
+                return;
+            }
             if key != "Backspace" {
                 return;
             }

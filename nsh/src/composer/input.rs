@@ -32,6 +32,7 @@ enum Command {
     #[cfg(target_os = "macos")]
     CloseWindow,
     Submit,
+    SubmitPost,
     Picker(String),
     Escape,
 }
@@ -54,6 +55,7 @@ pub(crate) struct Input {
     /// takes the key, so a shortcut bound to it never hears it.
     pub escapes: Signal<u64>,
     submit: Stored<Option<Rc<dyn Fn()>>>,
+    submit_post: Stored<Option<Rc<dyn Fn()>>>,
     deferred: Stored<Vec<Rc<dyn Fn()>>>,
     commands: Stored<mpsc::UnboundedSender<Command>>,
 }
@@ -104,6 +106,7 @@ impl Input {
             keys: signal((0, String::new())),
             escapes: signal(0),
             submit: stored(None),
+            submit_post: stored(None),
             deferred: stored(Vec::new()),
             commands: stored(commands),
         };
@@ -149,9 +152,14 @@ impl Input {
                         });
                         self.flush();
                     }
-                    Command::Submit => {
+                    Command::Submit | Command::SubmitPost => {
                         if !self.composing() {
-                            self.submit.with(|send| {
+                            let callback = if matches!(command, Command::SubmitPost) {
+                                self.submit_post
+                            } else {
+                                self.submit
+                            };
+                            callback.with(|send| {
                                 if let Some(send) = send {
                                     send();
                                 }
@@ -191,6 +199,10 @@ impl Input {
             self.session
                 .with(|session| show_draft(session, &raw, caret, &labels));
         });
+    }
+
+    pub fn on_submit_post(self, send: Rc<dyn Fn()>) {
+        self.submit_post.with(|callback| *callback = Some(send));
     }
 
     pub fn composing(self) -> bool {
@@ -574,6 +586,15 @@ impl PluginSpec for Behavior {
         if key.key == "Escape" && plain {
             let _ = self.commands.send(Command::Escape);
             return false;
+        }
+        let post_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            key.meta && !key.alt && !key.ctrl
+        } else {
+            key.alt && !key.meta && !key.ctrl
+        };
+        if key.key == "Enter" && key.shift && post_modifier {
+            let _ = self.commands.send(Command::SubmitPost);
+            return true;
         }
         if key.key == "Enter" && plain {
             let _ = self.commands.send(Command::Submit);

@@ -39,7 +39,7 @@ mod message_text;
 mod message_transcript;
 mod panes;
 pub(crate) use panes::{Ready, panes};
-mod pinned;
+pub(crate) mod pinned;
 pub(crate) mod reedit;
 mod timeline;
 mod unread;
@@ -223,7 +223,6 @@ pub(crate) fn screen(
     let composer_height = signal(0.0_f32);
     let composer_inset = move || px(composer_height.get());
     let chat_width = signal(0.0_f32);
-    let inline_pin = computed(move || chat_width.get() >= ui::glass_inline_pin_width().0);
     view()
         .on_file_drag_enter(move |_: &()| dragging.set(true))
         .on_file_drag_leave(move |_: &()| dragging.set(false))
@@ -372,9 +371,7 @@ pub(crate) fn screen(
                 )
                 .child(chrome(
                     chrome_height,
-                    pinned,
-                    inline_pin,
-                    header::bar(header, group, narrow, back, pinned, inline_pin),
+                    header::bar(header, group, narrow, back, pinned, chat_width),
                     view()
                         .pointer_events(PointerEvents::BoxNone)
                         .child(timeline.controls(i18n))
@@ -428,16 +425,9 @@ pub(crate) fn screen(
         }))
 }
 
-/// The chrome floating over the top of the timeline: the title bar, the pinned
-/// message on a row of its own when the title bar has no room for it, then the
+/// The chrome floating over the top of the timeline: the title bar, then the
 /// chat's notices. Empty space passes presses to the rows under it.
-fn chrome(
-    height: Signal<f32>,
-    pinned: pinned::Pinned,
-    inline_pin: Memo<bool>,
-    title: impl IntoElement,
-    notices: impl IntoElement,
-) -> View {
+fn chrome(height: Signal<f32>, title: impl IntoElement, notices: impl IntoElement) -> View {
     view()
         .absolute()
         .top_0()
@@ -452,18 +442,6 @@ fn chrome(
         })
         .child(ui::edge_fade(true, ui::surface_chat))
         .child(title)
-        .child(
-            view()
-                .px_3()
-                .pb_2()
-                .flex_row()
-                .pointer_events(PointerEvents::BoxNone)
-                .style_when(
-                    move || inline_pin.get() || !pinned.visible(),
-                    |style| style.hidden(),
-                )
-                .child(when(move || !inline_pin.get(), move || pinned.view(2))),
-        )
         .child(notices)
 }
 
@@ -484,7 +462,6 @@ pub(crate) fn preview_chrome<E: IntoElement>(
     let height = signal(0.0_f32);
     let bottom = signal(0.0_f32);
     let width = signal(0.0_f32);
-    let inline_pin = computed(move || width.get() >= ui::glass_inline_pin_width().0);
     view()
         .flex_1()
         .min_h_0()
@@ -504,9 +481,7 @@ pub(crate) fn preview_chrome<E: IntoElement>(
         )
         .child(chrome(
             height,
-            pinned,
-            inline_pin,
-            header::bar(header, group, || false, || {}, pinned, inline_pin),
+            header::bar(header, group, || false, || {}, pinned, width),
             view(),
         ))
 }

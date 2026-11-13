@@ -173,7 +173,7 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
     let focus_pending = signal(false);
     effect(move || {
         let (_, covered, panel_closed) = focus_layout.get();
-        if covered {
+        if covered || !panel_closed {
             input.blur();
         }
         focus_pending.set(!covered && panel_closed);
@@ -191,11 +191,22 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
     });
     // Escape in the input cancels a reply. The editor keeps Escape and closes
     // an open mention picker with it first; the reply waits for the next one.
+    let navigation =
+        use_context::<crate::navigation::ChatNavigation>().expect("Home provides chat navigation");
+    let shell = use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
     let escapes = stored(input.escapes.get_untracked());
     effect(move || {
         let count = input.escapes.get();
-        if escapes.replace(count) != count && quote.with_untracked(Option::is_some) {
-            quote.set(None);
+        if escapes.replace(count) != count {
+            if quote.with_untracked(Option::is_some) {
+                quote.set(None);
+            } else if !shell.settings.get_untracked()
+                && !actions.preview.with_untracked(Option::is_some)
+                && actions.forwarding.with_untracked(Vec::is_empty)
+                && actions.selected.with_untracked(Vec::is_empty)
+            {
+                navigation.back_panel();
+            }
         }
     });
     let send = send_command(SendContext {
@@ -228,6 +239,14 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             });
         }),
     );
+    input.on_submit_post({
+        let send = send.clone();
+        Rc::new(move || {
+            if !tray.active() {
+                send(false, true);
+            }
+        })
+    });
     // Files dropped, pasted or picked wait in the tray, under the input.
     effect(move || {
         if incoming_files.with(Vec::is_empty) {
@@ -247,7 +266,7 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
                     tray.send(silent);
                 }
             } else {
-                send(silent);
+                send(silent, false);
             }
         })
     };
@@ -450,7 +469,16 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
                         },
                     )
                     .tooltip(ui::hint(move || {
-                        i18n.tr("Send · Enter", "发送 · Enter").to_owned()
+                        let shortcut = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                            "⌘⇧Enter"
+                        } else {
+                            "Alt+Shift+Enter"
+                        };
+                        format!(
+                            "{} · Enter\n{} · {shortcut}",
+                            i18n.tr("Send", "发送"),
+                            i18n.tr("Send as Post", "发送为文章")
+                        )
                     }))
                 },
                 voice.button(busy),
@@ -485,8 +513,8 @@ struct SendContext {
 /// The most UTF-16 units one text message carries, as in the sender.
 const MAX_TEXT_UNITS: usize = 64 * 1024;
 
-/// Sends the draft; `true` sends it without a notification.
-fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
+/// Sends the draft with the requested silent and Post modes.
+fn send_command(context: SendContext) -> Rc<dyn Fn(bool, bool)> {
     let SendContext {
         account,
         conversation_id,
@@ -506,7 +534,7 @@ fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
     let owner = Owner::current();
     let toasts = use_context::<ui::Toasts>().expect("Home provides toasts");
     let i18n = i18n::current();
-    Rc::new(move |silent| {
+    Rc::new(move |silent, post| {
         if !can_send.get_untracked() || sending.get_untracked() || input.composing() {
             return;
         }
@@ -515,7 +543,8 @@ fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
             return;
         }
         // The sender would cut the rest off silently: keep the draft and say so.
-        if body.encode_utf16().count() > MAX_TEXT_UNITS {
+        let checked_body = if post { body.trim() } else { &body };
+        if checked_body.encode_utf16().count() > MAX_TEXT_UNITS {
             toasts.error(i18n.tr("Content too long", "内容过长"));
             return;
         }
@@ -533,7 +562,11 @@ fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
             spawn(async move {
                 let text = body.clone();
                 let result = runtime::commit(async move {
-                    client.message().send_text(id, text, quote_id, silent).await
+                    if post {
+                        client.message().send_post(id, text.trim().to_owned()).await
+                    } else {
+                        client.message().send_text(id, text, quote_id, silent).await
+                    }
                 })
                 .await;
                 pending.update(|ids| {
@@ -550,8 +583,10 @@ fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
                         if !owner.is_live() {
                             return;
                         }
-                        if quote
-                            .with(|q| q.as_ref().map(|m| &m.message_id) == sent_quote_id.as_ref())
+                        if !post
+                            && quote.with(|q| {
+                                q.as_ref().map(|m| &m.message_id) == sent_quote_id.as_ref()
+                            })
                         {
                             quote.set(None);
                         }

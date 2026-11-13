@@ -9,7 +9,7 @@ use super::tokens::{
 
 /// The row the top of every pane aligns to. The native height is authoritative;
 /// full screen and windows without native controls report none.
-fn title_bar_height() -> Points {
+pub(crate) fn title_bar_height() -> Points {
     let native = native_title_bar().top;
     if native.0 > 0.0 {
         native

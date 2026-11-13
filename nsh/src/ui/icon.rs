@@ -52,6 +52,7 @@ pub(crate) enum Icon {
     FullScreen,
     ExitFullScreen,
     Menu,
+    More,
     Play,
     Download,
     Upload,
@@ -145,6 +146,9 @@ pub(crate) fn icon(icon: Icon) -> Svg {
             "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>",
         ),
         Icon::ArrowLeft => asset(include_str!("../../assets/ic_back.svg")),
+        Icon::More => stroke(
+            "<circle cx='5' cy='12' r='1'/><circle cx='12' cy='12' r='1'/><circle cx='19' cy='12' r='1'/>",
+        ),
         Icon::Menu => stroke("<path d='M4 6h16M4 12h16M4 18h16'/>"),
         Icon::Play => stroke("<path d='m8 5 11 7-11 7Z'/>"),
         Icon::Download => stroke("<path d='M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4'/>"),

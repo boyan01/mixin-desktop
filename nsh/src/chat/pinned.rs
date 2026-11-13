@@ -25,10 +25,11 @@ pub(super) struct Pinned {
     preference_failed: Signal<bool>,
     retry: Signal<u64>,
     setting_key: Stored<String>,
-    /// None in the debug preview, where dismissal does nothing.
+    /// None in the debug preview; visibility still changes locally.
     settings: Stored<Option<SettingsClient>>,
     content: Memo<Option<String>>,
-    presence: crate::motion::Presence,
+    shown: Signal<bool>,
+    expansion: crate::motion::Tween,
     target: Signal<Option<String>>,
     side: Signal<Option<navigation::Panel>>,
 }
@@ -157,8 +158,7 @@ impl Pinned {
                 ))
             })
         });
-        let presence =
-            crate::motion::Presence::fade(move || shown.get() && content.with(Option::is_some));
+        let expansion = Self::expansion(shown, content);
         Self {
             i18n,
             owner,
@@ -170,19 +170,23 @@ impl Pinned {
             setting_key,
             settings: stored(Some(settings)),
             content,
-            presence,
+            shown,
+            expansion,
             target,
             side,
         }
     }
 
-    /// A fixed pin, for the debug preview: no account, and no dismissal.
+    /// A pin for the debug preview: the production visibility controls, no account.
     #[cfg(debug_assertions)]
     pub(crate) fn detached(
         text: Signal<Option<String>>,
         side: Signal<Option<navigation::Panel>>,
     ) -> Self {
         let content = computed(move || text.get());
+        let shown = use_context::<PreviewVisibility>()
+            .map(|visibility| visibility.0)
+            .unwrap_or_else(|| signal(true));
         Self {
             i18n: i18n::current(),
             owner: Owner::current(),
@@ -194,7 +198,8 @@ impl Pinned {
             setting_key: stored(String::new()),
             settings: stored(None),
             content,
-            presence: crate::motion::Presence::fade(move || content.with(Option::is_some)),
+            shown,
+            expansion: Self::expansion(shown, content),
             target: signal(None),
             side,
         }
@@ -202,7 +207,102 @@ impl Pinned {
 
     /// Whether the pin or its error has anything to show.
     pub(super) fn visible(self) -> bool {
-        self.presence.mounted() || self.failed.get() || self.preference_failed.get()
+        self.expanded_fraction() > 0.0 || self.failed.get() || self.preference_failed.get()
+    }
+
+    fn expansion(shown: Signal<bool>, content: Memo<Option<String>>) -> crate::motion::Tween {
+        let expansion = crate::motion::Tween::new(0.0);
+        let expanded = computed(move || shown.get() && content.with(Option::is_some));
+        effect(move || {
+            let target = if expanded.get() { 1.0 } else { 0.0 };
+            untracked(move || expansion.to(target, crate::motion::PIN_FOLD_MS));
+        });
+        expansion
+    }
+
+    pub(super) fn expanded_fraction(self) -> f32 {
+        self.expansion.get()
+    }
+
+    fn set_shown(self, shown: bool) {
+        if self.busy.get_untracked() {
+            return;
+        }
+        let previous = self.shown.get_untracked();
+        self.shown.set(shown);
+        self.preference_failed.set(false);
+        let Some(settings) = self.settings.with(|settings| settings.clone()) else {
+            return;
+        };
+        let key = self.setting_key.with(|key| key.clone());
+        self.busy.set(true);
+        let command =
+            runtime::commit(
+                async move { settings.set_setting(key, Some(shown.to_string())).await },
+            );
+        spawn(async move {
+            let result = command.await;
+            if self.owner.is_live() {
+                batch(|| {
+                    self.busy.set(false);
+                    self.preference_failed.set(result.is_err());
+                    if result.is_err() {
+                        self.shown.set(previous);
+                    }
+                });
+            }
+        });
+    }
+
+    /// Shares the fold's progress with the bar. Zero width includes its gap,
+    /// so an expanded bar or an empty conversation leaves no toolbar placeholder.
+    pub(super) fn compact_button(self, compact: Memo<bool>) -> View {
+        view()
+            .flex_none()
+            .w(move || {
+                px(if self.content.with(Option::is_some) {
+                    (ui::glass_bar_height().0 + ui::space_sm().0)
+                        * if compact.get() {
+                            1.0
+                        } else {
+                            1.0 - self.expansion.get()
+                        }
+                } else {
+                    0.0
+                })
+            })
+            .overflow_hidden()
+            .child(when(
+                move || {
+                    self.content.with(Option::is_some)
+                        && (compact.get() || self.expansion.get() < 1.0)
+                },
+                move || {
+                    view()
+                        .pr_2()
+                        .tooltip(ui::hint(move || {
+                            self.i18n.tr("Pinned messages", "置顶消息").to_owned()
+                        }))
+                        .opacity(move || {
+                            if compact.get() {
+                                1.0
+                            } else {
+                                1.0 - self.expansion.get()
+                            }
+                        })
+                        .child(ui::glass_button(
+                            ui::round_button()
+                                .accessibility_label(move || {
+                                    Some(self.i18n.tr("Pinned messages", "置顶消息").into())
+                                })
+                                .selected(move || {
+                                    self.side.get() == Some(navigation::Panel::Pinned)
+                                })
+                                .on_press(move || self.side.set(Some(navigation::Panel::Pinned)))
+                                .child(ui::icon(ui::Icon::Pin)),
+                        ))
+                },
+            ))
     }
 
     /// A glass capsule: dismiss, the pinned message (a press jumps to it), and the
@@ -210,16 +310,12 @@ impl Pinned {
     pub(super) fn view(self, lines: u32) -> View {
         let Self {
             i18n,
-            owner,
             preview,
             busy,
             failed,
             preference_failed,
             retry,
-            setting_key,
-            settings,
             content,
-            presence,
             target,
             side,
             ..
@@ -230,103 +326,101 @@ impl Pinned {
             // As long as the row allows: the chrome keeps its gaps around it.
             .flex_1()
             .gap_2()
+            .items_end()
             .style_when(move || !self.visible(), |style| style.hidden())
             .child(when(
-                move || presence.mounted(),
+                move || self.expansion.get() > 0.0,
                 move || {
-                    presence.surface(
-                        // Two lines grow past the chrome's height: the same shape, taller.
-                        ui::glass(view())
-                            .min_h(ui::glass_bar_height())
-                            .flex_row()
-                            .items_center()
-                            .rounded(ui::glass_radius())
-                            .flex_shrink(1.0)
-                            .min_w_0()
-                            .px_1()
-                            .gap_1()
-                            .child(
-                                ui::round_button()
-                                    .size_8()
-                                    .disabled(busy)
-                                    .accessibility_label(move || {
-                                        Some(i18n.tr("Close", "关闭").into())
-                                    })
-                                    .on_press(move || {
-                                        if busy.get_untracked() {
-                                            return;
-                                        }
-                                        let Some(settings) =
-                                            settings.with(|settings| settings.clone())
-                                        else {
-                                            return;
-                                        };
-                                        let key = setting_key.with(|key| key.clone());
-                                        busy.set(true);
-                                        preference_failed.set(false);
-                                        let command = runtime::commit(async move {
-                                            settings.set_setting(key, Some("false".into())).await
-                                        });
-                                        spawn(async move {
-                                            let result = command.await;
-                                            if owner.is_live() {
-                                                busy.set(false);
-                                                preference_failed.set(result.is_err());
+                    view()
+                        .flex_row()
+                        .justify_end()
+                        .w_full()
+                        .max_w(move || percentage(self.expansion.get()))
+                        .overflow_hidden()
+                        .opacity(move || self.expansion.get())
+                        .disabled(move || !self.shown.get())
+                        .accessibility_elements_hidden(move || !self.shown.get())
+                        .pointer_events(move || {
+                            if self.shown.get() {
+                                PointerEvents::Auto
+                            } else {
+                                PointerEvents::None
+                            }
+                        })
+                        .child(
+                            // Two lines grow past the chrome's height: the same shape, taller.
+                            ui::glass(view())
+                                .flex_1()
+                                .min_h(ui::glass_bar_height())
+                                .flex_row()
+                                .items_center()
+                                .rounded(ui::glass_radius())
+                                .flex_shrink(1.0)
+                                .min_w_0()
+                                .px_1()
+                                .gap_1()
+                                .child(
+                                    ui::round_button()
+                                        .size_8()
+                                        .disabled(busy)
+                                        .accessibility_label(move || {
+                                            Some(i18n.tr("Close", "关闭").into())
+                                        })
+                                        .on_press(move || self.set_shown(false))
+                                        .child(ui::icon(ui::Icon::Close).size(ui::icon_sm())),
+                                )
+                                .child(
+                                    ui::command()
+                                        .flex_1()
+                                        .min_w_0()
+                                        .min_h_0()
+                                        .px_1()
+                                        .py_1()
+                                        .rounded(ui::glass_radius())
+                                        .justify_start()
+                                        .accessibility_label(move || {
+                                            Some(i18n.text(Key::Pinned).into())
+                                        })
+                                        .on_press(move || {
+                                            if let Some(id) = preview.with(|preview| {
+                                                preview
+                                                    .as_ref()
+                                                    .map(|(item, _)| item.message_id.clone())
+                                            }) {
+                                                target.set(Some(id));
                                             }
-                                        });
-                                    })
-                                    .child(ui::icon(ui::Icon::Close).size(ui::icon_sm())),
-                            )
-                            .child(
-                                ui::command()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .min_h_0()
-                                    .px_1()
-                                    .py_1()
-                                    .rounded(ui::glass_radius())
-                                    .justify_start()
-                                    .accessibility_label(move || {
-                                        Some(i18n.text(Key::Pinned).into())
-                                    })
-                                    .on_press(move || {
-                                        if let Some(id) = preview.with(|preview| {
-                                            preview
-                                                .as_ref()
-                                                .map(|(item, _)| item.message_id.clone())
-                                        }) {
-                                            target.set(Some(id));
-                                        }
-                                    })
-                                    .child(
-                                        text(move || content.get().unwrap_or_default())
-                                            .flex_1()
-                                            .min_w_0()
-                                            .text_role(ui::TextRole::Body)
-                                            .number_of_lines(lines),
-                                    ),
-                            )
-                            .child(
-                                ui::round_button()
-                                    .size_8()
-                                    .accessibility_label(move || {
-                                        Some(i18n.tr("Pinned messages", "置顶消息").into())
-                                    })
-                                    .selected(move || side.get() == Some(navigation::Panel::Pinned))
-                                    .on_press(move || {
-                                        side.set(
-                                            if side.get_untracked()
-                                                == Some(navigation::Panel::Pinned)
-                                            {
-                                                None
-                                            } else {
-                                                Some(navigation::Panel::Pinned)
-                                            },
-                                        );
-                                    })
-                                    .child(ui::icon(ui::Icon::Pin)),
-                            ),
-                    )
+                                        })
+                                        .child(
+                                            text(move || content.get().unwrap_or_default())
+                                                .flex_1()
+                                                .min_w_0()
+                                                .text_role(ui::TextRole::Body)
+                                                .number_of_lines(lines),
+                                        ),
+                                )
+                                .child(
+                                    ui::round_button()
+                                        .size_8()
+                                        .accessibility_label(move || {
+                                            Some(i18n.tr("Pinned messages", "置顶消息").into())
+                                        })
+                                        .selected(move || {
+                                            side.get() == Some(navigation::Panel::Pinned)
+                                        })
+                                        .on_press(move || {
+                                            side.set(
+                                                if side.get_untracked()
+                                                    == Some(navigation::Panel::Pinned)
+                                                {
+                                                    None
+                                                } else {
+                                                    Some(navigation::Panel::Pinned)
+                                                },
+                                            );
+                                        })
+                                        .child(ui::icon(ui::Icon::Pin)),
+                                ),
+                        )
                 },
             ))
             .child(when(
@@ -349,3 +443,8 @@ pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
         .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
         .child(ui::link(move || i18n.text(Key::Retry), retry))
 }
+
+/// Optional fixture control for the same local state used by real controls.
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy)]
+pub(crate) struct PreviewVisibility(pub(crate) Signal<bool>);

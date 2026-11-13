@@ -6,12 +6,18 @@ desktop wins: transient feedback is a bottom-centered `ui::Toasts` card (2s succ
 5s error), and the send dialog is a thumbnail grid (`thumbnail-grid-size`) instead of a list.
 
 The chat's chrome floats over the timeline as glass capsules: the title bar's
-identity and each of its buttons, the latest pin (in the title row from
-`glass-inline-pin-width`, on a row of its own below that), the jump buttons, the
+identity and each of its buttons, the latest pin in the flexible title center, the jump buttons, the
 announcement, the composer and toasts. `ui::glass` draws Liquid Glass where the
 platform has it (macOS 26 and later) and a `glass-blur` backdrop under a
 `glass-tint-opacity` tint elsewhere. Content, such as bubbles, cards and settings
 lists, stays solid.
+
+The chat header reserves its fixed controls and gaps first, then bounds the identity
+to 36% of the remaining space (at most `card-width`). The rest holds a single-line,
+truncated pin. `glass-inline-pin-width` is the minimum readable pin slot (160pt),
+not a window breakpoint. Below it, or after dismissing the summary, a compact pin
+button opens the pinned-message inspector directly and returns the summary space
+to the identity. No pin leaves no placeholder.
 
 **The rule: screens use `ui::` components and tokens only. No raw `px`, colors or
 radii in screen modules.** A missing role or variant goes into `theme.json` or

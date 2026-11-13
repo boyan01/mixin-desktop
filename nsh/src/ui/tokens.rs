@@ -160,12 +160,12 @@ lengths! {
     /// The close mark of a dismissible banner.
     pin_close_size = "pin-close-size";
     /// The floating chat chrome: its pill height, the blur behind glass where the
-    /// platform has no Liquid Glass, the widest pinned pill, and the chat width
-    /// from which the pinned pill joins the title row.
+    /// platform has no Liquid Glass.
     glass_bar_height = "glass-bar-height";
     /// How far a scroll edge fade reaches in from the edge.
     edge_fade_height = "edge-fade";
     glass_blur = "glass-blur";
+    /// Minimum room for a readable inline pin after the title and controls.
     glass_inline_pin_width = "glass-inline-pin-width";
     /// What a bubble leaves free on the side away from its sender.
     message_far_edge = "message-far-edge";

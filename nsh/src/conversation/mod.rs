@@ -509,13 +509,7 @@ fn frame(state: State, content: impl IntoElement) -> View {
             .pointer_events(PointerEvents::BoxNone)
             .child(
                 parts::page_header(
-                    move || {
-                        if state.page.get() == Page::Info {
-                            ""
-                        } else {
-                            state.page.get().title()
-                        }
-                    },
+                    move || state.page.get().title(),
                     Some(
                         parts::back_button(move || state.page.set(Page::Info)).style_when(
                             move || state.page.get() == Page::Info,

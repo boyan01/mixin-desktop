@@ -35,6 +35,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
     let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
     scroll().flex_1().min_h_0().child(
         parts::grouped_page()
+            .gap(ui::space_lg())
             .child(identity(state))
             .child(description(state))
             .child(quick_actions(state))
@@ -113,7 +114,7 @@ fn identity(state: State) -> impl IntoElement {
     view()
         .items_center()
         .px(ui::space_lg())
-        .pb(ui::space_lg())
+        .pb(ui::space_xs())
         .gap(ui::space_xs())
         .child(ui::conversation_avatar(
             move || state.row.get(),
@@ -146,7 +147,7 @@ fn identity(state: State) -> impl IntoElement {
                     }
                 })
             })
-            .text_role(ui::TextRole::Body)
+            .text_role(ui::TextRole::Caption)
             .text_color(ui::fg_secondary)
             .select_text(),
         )

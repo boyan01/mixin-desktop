@@ -44,6 +44,14 @@ fn example(label: &'static str, content: impl IntoElement) -> View {
 }
 
 pub(super) fn editor(files: bool, actions: Actions) -> View {
+    editor_with_escape(files, actions, || {})
+}
+
+pub(super) fn editor_with_escape(
+    files: bool,
+    actions: Actions,
+    escape: impl Fn() + Copy + 'static,
+) -> View {
     let failed = signal(false);
     actions.on(
         "File error",
@@ -58,6 +66,20 @@ pub(super) fn editor(files: bool, actions: Actions) -> View {
         String::new()
     });
     let input = composer::Input::detached(draft);
+    if let Some(navigation) = use_context::<crate::navigation::ChatNavigation>() {
+        effect(move || {
+            if navigation.panel.get().is_some() {
+                input.blur();
+            }
+        });
+    }
+    let escaped = stored(input.escapes.get_untracked());
+    effect(move || {
+        let count = input.escapes.get();
+        if escaped.replace(count) != count {
+            escape();
+        }
+    });
     let open = signal(false);
     let snapshot = signal(voice_snapshot(false));
     if !files {

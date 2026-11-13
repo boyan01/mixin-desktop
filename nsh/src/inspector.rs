@@ -36,7 +36,7 @@ pub(crate) fn screen(
 #[cfg(debug_assertions)]
 pub(crate) use {pinned::preview as preview_pinned, search::preview as preview_search};
 
-/// A modeless inspector above the chat. Only its surface receives pointer input;
+/// An inspector over the chat toolbar. Outside presses dismiss and are consumed;
 /// the timeline keeps its full width throughout opening and closing.
 pub(crate) fn overlay(
     destination: Signal<Option<Panel>>,
@@ -70,9 +70,40 @@ pub(crate) fn overlay(
         .overflow_hidden()
         .pointer_events(PointerEvents::BoxNone)
         .child(when(
+            move || destination.get().is_some(),
+            move || {
+                view()
+                    .absolute()
+                    .inset_0()
+                    .label("Dismiss chat panel")
+                    .on_press(move || destination.set(None))
+            },
+        ))
+        .child(when(
             move || destination.get().is_some() || progress.get() > 0.0,
             move || {
+                let panel = element_ref();
+                let focused = stored(false);
+                effect(move || {
+                    if progress.get() >= 1.0
+                        && destination.get().is_some()
+                        && destination.get() != Some(Panel::Search)
+                        && !focused.replace(true)
+                    {
+                        request_animation_frame(move |_| {
+                            if destination.get_untracked().is_some()
+                                && destination.get_untracked() != Some(Panel::Search)
+                            {
+                                panel.focus();
+                            }
+                        });
+                    }
+                });
                 ui::glass(view())
+                    .element_ref(&panel)
+                    .focusable(true)
+                    .label("Chat panel")
+                    .on_press(|| {})
                     .w(ui::sidebar_width)
                     .max_w(relative(1.0))
                     .flex_1()
