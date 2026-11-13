@@ -363,6 +363,8 @@ fn card(quote: Quote, actions: Actions) -> View {
                 .pt(inset)
                 .pb(inset)
                 .pl(inset)
+                // Text ends short of the card's edge, or of the artwork.
+                .pr(ui::space_sm())
                 .child(when(
                     move || quote.with(|quote| quote.valid && !quote.author.is_empty()),
                     move || {

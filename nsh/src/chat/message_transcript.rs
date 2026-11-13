@@ -142,12 +142,14 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
     )
 }
 
-pub(super) fn row_menu(
+/// On `body` itself: a wrapping view would let a bubble outgrow its row, and
+/// its text would stop wrapping.
+pub(super) fn row_menu<E: Interactive>(
     row: impl Fn() -> Option<MessageListView> + Copy + 'static,
     root: Stored<String>,
     actions: Actions,
-    body: impl IntoElement + 'static,
-) -> impl IntoElement {
+    body: E,
+) -> E {
     let i18n = actions.i18n;
     let busy = actions.busy;
     let owner = Owner::current();
@@ -157,7 +159,7 @@ pub(super) fn row_menu(
             if message.category.ends_with("_TRANSCRIPT") && root.with(|root| message.message_id == *root))
     })
     };
-    ui::native_context_menu(body, move || {
+    ui::context_menu_on(body, move || {
         if busy.get_untracked() || !active() {
             return Vec::new();
         }
@@ -350,6 +352,8 @@ pub(super) fn row_menu(
         }
         ui::menu_groups([copy_group, save, sticker])
     })
+    .min_w_0()
+    .flex_shrink(1.0)
 }
 
 pub(crate) fn summary_error(retry: impl Fn() + 'static) -> View {
