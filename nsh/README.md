@@ -193,22 +193,26 @@ Visual behavior that has not been inspected is reported separately from source, 
 
 ## macOS bundle
 
-The app uses its own native executable entry point for process ownership and
-native-component registration. Build that entry point into a local bundle with:
+Build with the official NSH CLI from the repository root:
 
 ```sh
-python3 nsh/tool/package_macos.py
-# Add --release for an optimized build, or --out /absolute/path/Mixin.app.
+nsh package nsh --target macos --id one.mixin.messenger.desktop -o nsh/.nsh/out/macos
 ```
 
-The packager writes the app icon, microphone/local-network purpose strings and
-an alternate `mixin:` URL registration, then applies and verifies ad hoc signing.
-Like a local Flutter build, the bundle uses the Flutter bundle id
-`one.mixin.messenger.desktop` and the sandbox entitlements in
-`packaging/macos/Mixin.entitlements`, so macOS gives it the Flutter container.
-A sandboxed `MIXIN_DESKTOP_DATA_DIR` must point inside that container.
-It does not select a system-default protocol handler. Distribution signing,
-notarization, updates and other platform packages need separate validation.
+The CLI builds an optimized app and applies ad hoc signing. `nsh.json` declares
+its icon, sandbox entitlements, usage descriptions and `mixin:` URL scheme.
+The bundle id `one.mixin.messenger.desktop` preserves the Flutter container;
+a sandboxed `MIXIN_DESKTOP_DATA_DIR` must point inside that container.
+For isolated validation, use a separate bundle id and output directory.
+
+The application owns initialization, single-instance forwarding and shutdown
+through the official runner's lifecycle APIs. Notification audio is installed in
+the app's container `Library/Sounds`.
+
+Isolated startup, logging, second-instance forwarding and signal-driven shutdown
+have been verified. Close/Quit menu interactions and audible notification delivery
+remain unverified. Distribution signing, notarization and updates need separate
+validation.
 
 Windows and Linux native staging/archive tools, prerequisites and remaining runtime
 checks are documented in [packaging/README.md](packaging/README.md). Their existence

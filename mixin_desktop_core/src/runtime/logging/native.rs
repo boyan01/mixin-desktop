@@ -2,7 +2,7 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use anyhow::{anyhow, Result};
 use log::{LevelFilter, Record};
@@ -21,6 +21,38 @@ const MAX_LOG_FILES: usize = 10;
 const LOG_PATTERN: &str = "{d(%Y-%m-%dT%H:%M:%S%.3f%:z)} {l:<5} {t} - {m}{n}";
 
 static LOGGER: Mutex<Option<Handle>> = Mutex::new(None);
+static BACKEND: OnceLock<log4rs::Logger> = OnceLock::new();
+
+struct DeferredLogger;
+impl log::Log for DeferredLogger {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        BACKEND.get().is_some_and(|logger| logger.enabled(metadata))
+    }
+    fn log(&self, record: &Record<'_>) {
+        if let Some(logger) = BACKEND.get() {
+            logger.log(record);
+        }
+    }
+    fn flush(&self) {
+        if let Some(logger) = BACKEND.get() {
+            log::Log::flush(logger);
+        }
+    }
+}
+
+/// Reserves logger ownership without opening files, resolving data or starting threads.
+/// Safe in host discovery as well as before the native runner installs its logger.
+pub fn install_deferred() -> Result<()> {
+    static INSTALLED: OnceLock<Result<(), String>> = OnceLock::new();
+    INSTALLED
+        .get_or_init(|| {
+            log::set_logger(&DeferredLogger).map_err(|error| error.to_string())?;
+            log::set_max_level(LevelFilter::Info);
+            Ok(())
+        })
+        .clone()
+        .map_err(|error| anyhow!(error))
+}
 
 struct IndexedFileState {
     index: u64,
@@ -128,6 +160,7 @@ impl Append for IndexedFileAppender {
 }
 
 pub fn init(app_name: String, app_version: String, build_number: String) -> Result<()> {
+    install_deferred()?;
     let mut logger = LOGGER
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -158,7 +191,13 @@ pub fn init(app_name: String, app_version: String, build_number: String) -> Resu
                 .appender("stdout")
                 .build(LevelFilter::Info),
         )?;
-    *logger = Some(log4rs::init_config(config)?);
+    let backend = log4rs::Logger::new(config);
+    let handle = backend.handle();
+    BACKEND
+        .set(backend)
+        .map_err(|_| anyhow!("logging backend already initialized"))?;
+    log::set_max_level(LevelFilter::Trace);
+    *logger = Some(handle);
     log::info!(target: "logger", "initialized at {}", directory.display());
     Ok(())
 }

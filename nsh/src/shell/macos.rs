@@ -71,7 +71,8 @@ impl Host {
     fn new(context: ComponentContext) -> Self {
         let mtm =
             MainThreadMarker::new().expect("Native components are created on AppKit's thread");
-        let namespace = std::env::var_os("MIXIN_DESKTOP_DATA_DIR")
+        let namespace = mixin_desktop_api::data_directory()
+            .ok()
             .and_then(|path| std::fs::canonicalize(path).ok())
             .map(|path| URL_SAFE_NO_PAD.encode(path.as_os_str().as_encoded_bytes()))
             .unwrap_or_else(|| "default".into());

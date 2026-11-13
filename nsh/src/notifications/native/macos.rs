@@ -104,6 +104,7 @@ impl Delegate {
 
 pub(super) struct NativeNotifications {
     center: Retained<UNUserNotificationCenter>,
+    sound_name: &'static str,
     delegate: Retained<Delegate>,
     previous_delegate: Option<Retained<ProtocolObject<dyn UNUserNotificationCenterDelegate>>>,
 }
@@ -116,6 +117,17 @@ impl NativeNotifications {
         }
         // Calling this for an unbundled command-line executable raises an
         // Objective-C exception. The bundle check must precede this call.
+        let legacy_sound =
+            std::path::PathBuf::from(NSBundle::mainBundle().bundlePath().to_string())
+                .join("Contents/Resources/mixin.caf");
+        let sound_name = if legacy_sound.is_file() {
+            "mixin.caf"
+        } else {
+            install_sound().map_err(|error| {
+                Error::Native(format!("Installing notification sound: {error}"))
+            })?;
+            "mixin-messenger.caf"
+        };
         let center = UNUserNotificationCenter::currentNotificationCenter();
         let previous_delegate = center.delegate();
         // NSH installs its default delegate before mounting the Rust app.
@@ -138,6 +150,7 @@ impl NativeNotifications {
         Ok((
             Self {
                 center,
+                sound_name,
                 delegate,
                 previous_delegate,
             },
@@ -215,8 +228,8 @@ impl NativeNotifications {
         content.setBody(&NSString::from_str(&notification.body));
         content.setThreadIdentifier(&NSString::from_str(&notification.conversation_id));
         // Match Flutter: let Notification Center play the bundled sound once.
-        content.setSound(Some(&UNNotificationSound::soundNamed(ns_string!(
-            "mixin.caf"
+        content.setSound(Some(&UNNotificationSound::soundNamed(&NSString::from_str(
+            self.sound_name,
         ))));
         let account_id = NSString::from_str(&notification.account_id);
         let conversation_id = NSString::from_str(&notification.conversation_id);
@@ -354,5 +367,114 @@ fn permission(status: UNAuthorizationStatus) -> Permission {
             Permission::Provisional
         }
         _ => Permission::Unknown,
+    }
+}
+
+/// Notification Center searches the sandbox's Library/Sounds as well as the
+/// bundle root. NSH's nested assets therefore need no bundle postprocessing.
+fn install_sound() -> std::io::Result<()> {
+    use objc2_foundation::{NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask};
+    let directories = NSFileManager::defaultManager().URLsForDirectory_inDomains(
+        NSSearchPathDirectory::LibraryDirectory,
+        NSSearchPathDomainMask::UserDomainMask,
+    );
+    let library = directories
+        .firstObject()
+        .and_then(|url| url.path())
+        .ok_or_else(|| std::io::Error::other("Missing application Library directory"))?;
+    let directory = std::path::PathBuf::from(library.to_string()).join("Sounds");
+    let bundle_id = NSBundle::mainBundle()
+        .bundleIdentifier()
+        .ok_or_else(|| std::io::Error::other("Missing bundle identity"))?
+        .to_string();
+    prepare_sound_directory(&directory, &bundle_id)?;
+    let destination = directory.join("mixin-messenger.caf");
+    let bytes = include_bytes!("../../../assets/mixin.caf");
+    if std::fs::read(&destination).ok().as_deref() == Some(bytes.as_slice()) {
+        return Ok(());
+    }
+    let temporary = directory.join(".mixin-messenger.caf.tmp");
+    std::fs::write(&temporary, bytes)?;
+    std::fs::rename(temporary, destination)
+}
+
+fn prepare_sound_directory(directory: &std::path::Path, bundle_id: &str) -> std::io::Result<()> {
+    // macOS seeds containers with a Sounds symlink to the user's shared
+    // Library. Preserve that link, and install only in this app's private
+    // container: never follow it to write shared user sound resources.
+    if std::fs::symlink_metadata(directory).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        let container_library = directory
+            .parent()
+            .ok_or_else(|| std::io::Error::other("Missing Library"))?;
+        let suffix = std::path::PathBuf::from("Containers")
+            .join(bundle_id)
+            .join("Data/Library");
+        if !container_library.ends_with(suffix)
+            || std::fs::read_link(directory)? != std::path::Path::new("../../../../Sounds")
+        {
+            return Err(std::io::Error::other(
+                "Refusing to replace a nonstandard Sounds link",
+            ));
+        }
+        let backup = container_library.join("MixinSharedSounds");
+        if backup.symlink_metadata().is_ok() {
+            return Err(std::io::Error::other("Sounds link backup already exists"));
+        }
+        std::fs::rename(directory, &backup)?;
+        if let Err(error) = std::fs::create_dir(directory) {
+            let _ = std::fs::rename(&backup, directory);
+            return Err(error);
+        }
+    }
+    std::fs::create_dir_all(directory)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod sound_directory_tests {
+    use super::*;
+
+    #[test]
+    fn preparing_container_sounds_preserves_the_shared_link_and_user_files() {
+        let root =
+            std::env::temp_dir().join(format!("mixin-private-sounds-{}", std::process::id()));
+        let library = root.join("Containers/test.mixin/Data/Library");
+        std::fs::create_dir_all(&library).unwrap();
+        std::fs::create_dir_all(root.join("Sounds")).unwrap();
+        std::fs::write(root.join("Sounds/user.caf"), b"user sound").unwrap();
+        let directory = library.join("Sounds");
+        std::os::unix::fs::symlink("../../../../Sounds", &directory).unwrap();
+        prepare_sound_directory(&directory, "test.mixin").unwrap();
+        assert!(
+            !directory
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(
+            std::fs::read_link(library.join("MixinSharedSounds")).unwrap(),
+            std::path::Path::new("../../../../Sounds")
+        );
+        assert_eq!(
+            std::fs::read(root.join("Sounds/user.caf")).unwrap(),
+            b"user sound"
+        );
+        prepare_sound_directory(&directory, "test.mixin").unwrap();
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn preparing_sounds_rejects_a_custom_link_without_changing_it() {
+        let root = std::env::temp_dir().join(format!("mixin-custom-sounds-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let directory = root.join("Sounds");
+        std::os::unix::fs::symlink("custom", &directory).unwrap();
+        assert!(prepare_sound_directory(&directory, "test.mixin").is_err());
+        assert_eq!(
+            std::fs::read_link(&directory).unwrap(),
+            std::path::Path::new("custom")
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -1,6 +1,6 @@
 //! Files shipped by the official NSH packager. These asset URIs do not map
-//! to the main bundle's resource root; macOS named notification sounds still
-//! require the resource mapping described in docs/nsh-packaging.md.
+//! to the main bundle's resource root. The macOS notification adapter installs
+//! its sound in the application's Library/Sounds before notification delivery.
 use nsh_core::element::{AssetFile, AssetKind};
 
 pub(crate) const FILES: &[AssetFile] = &[

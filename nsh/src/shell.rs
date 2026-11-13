@@ -1,5 +1,5 @@
 //! Process-scoped native shell; account actions stay with the signed-in owner.
-mod instance;
+pub(crate) mod instance;
 mod menus;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 mod window_state;

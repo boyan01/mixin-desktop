@@ -222,7 +222,7 @@ fn profile_folder(key: &str) -> Result<PathBuf, &'static str> {
         .filter(|account| !account.is_empty())
         .ok_or("Missing browser account")?;
     let root =
-        std::env::var_os("MIXIN_DESKTOP_DATA_DIR").ok_or("Missing application data directory")?;
+        mixin_desktop_api::data_directory().map_err(|_| "Missing application data directory")?;
     let root = std::fs::canonicalize(root).map_err(|_| "Invalid application data directory")?;
     let mut hash = Sha256::new();
     hash.update(b"one.mixin.messenger.nsh.web-profile\0");

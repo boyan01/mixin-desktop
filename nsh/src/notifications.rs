@@ -89,7 +89,7 @@ pub(crate) fn mount() -> Handle {
     handle.refresh_permission();
     effect(move || {
         let _revision = handle.preview_retry.get();
-        if std::env::var_os("MIXIN_DESKTOP_DATA_DIR").is_none_or(|path| path.is_empty()) {
+        if mixin_desktop_api::data_directory().is_err() {
             handle.preview_failed.set(true);
             return;
         }

@@ -8,31 +8,38 @@ use std::{
 use std::{
     io::{Read, Write},
     path::PathBuf,
+    time::Duration,
+};
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
+use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread::JoinHandle,
-    time::Duration,
 };
 
 use tokio::sync::mpsc;
 
 use super::Event;
 
+#[cfg(target_os = "macos")]
+mod macos;
 mod protocol;
 #[cfg(target_os = "windows")]
 mod windows;
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 use protocol::MAX_PAYLOAD;
 
 pub struct Instance {
     _lock: File,
     #[cfg(target_os = "windows")]
     transport: windows::Server,
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     transport: UnixServer,
+    #[cfg(target_os = "macos")]
+    transport: macos::Server,
     #[cfg(target_os = "macos")]
     _urls: super::native::UrlCapture,
 }
@@ -60,7 +67,19 @@ pub(super) fn acquire(
     match lock.try_lock() {
         Ok(()) => {}
         Err(TryLockError::WouldBlock) => {
-            #[cfg(unix)]
+            #[cfg(target_os = "macos")]
+            {
+                match macos::forward(&directory, &intents) {
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        // Older app versions retain the same directory lock but
+                        // publish a private Unix socket instead of an endpoint.
+                        forward(&socket_path(&directory)?, &intents)?;
+                    }
+                    result => result?,
+                }
+                return Ok(Launch::Forwarded);
+            }
+            #[cfg(all(unix, not(target_os = "macos")))]
             {
                 forward(&socket_path(&directory)?, &intents)?;
                 return Ok(Launch::Forwarded);
@@ -82,7 +101,9 @@ pub(super) fn acquire(
     }
     #[cfg(target_os = "macos")]
     let capture = super::native::UrlCapture::new(events.clone())?;
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
+    let transport = macos::Server::start(&directory, events.clone())?;
+    #[cfg(all(unix, not(target_os = "macos")))]
     let transport = UnixServer::start(socket_path(&directory)?, events.clone())?;
     #[cfg(target_os = "windows")]
     let transport = windows::Server::start(&directory, events.clone())?;
@@ -98,14 +119,14 @@ pub(super) fn acquire(
     Ok(Launch::Primary(instance))
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 struct UnixServer {
     socket: PathBuf,
     stop: Arc<AtomicBool>,
     worker: Option<JoinHandle<()>>,
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 impl UnixServer {
     fn start(socket: PathBuf, events: mpsc::Sender<Event>) -> io::Result<Self> {
         Self::start_observed(socket, events, || {})
@@ -176,21 +197,21 @@ impl UnixServer {
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 impl Drop for UnixServer {
     fn drop(&mut self) {
         self.shutdown();
     }
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 struct DeadlineReader<'a> {
     stream: &'a mut std::os::unix::net::UnixStream,
     deadline: std::time::Instant,
     stop: &'a AtomicBool,
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 impl Read for DeadlineReader<'_> {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
         loop {
@@ -289,7 +310,7 @@ fn forward(socket: &Path, intents: &[Event]) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "macos"), test)))]
 fn receive(stream: &mut impl Read, events: &mpsc::Sender<Event>) -> io::Result<()> {
     let mut size = [0; 4];
     stream.read_exact(&mut size)?;

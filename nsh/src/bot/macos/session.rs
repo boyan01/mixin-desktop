@@ -75,7 +75,7 @@ pub(super) fn set_theme(session: &str, app: &str, color: Option<[u8; 3]>) {
 
 fn identifier(key: &str) -> Result<Retained<NSUUID>, ()> {
     let account = key.split_once(':').map(|(account, _)| account).ok_or(())?;
-    let directory = std::env::var_os("MIXIN_DESKTOP_DATA_DIR").ok_or(())?;
+    let directory = mixin_desktop_api::data_directory().map_err(|_| ())?;
     let canonical = std::fs::canonicalize(directory).map_err(|_| ())?;
     let mut digest = Sha256::new();
     digest.update(b"one.mixin.messenger.nsh.web-profile\0");

@@ -1,13 +1,30 @@
-//! Runs Mixin on the machine's native NSH backend.
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+//! Runs Mixin on the machine's native NSH backend.
+#[cfg(target_os = "macos")]
+fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
+    let tokens = nsh_base::tokens_of(Some(include_str!("../theme.json")))?;
+    nsh_platform_macos::set_components(mixin_desktop_ui::register_native_components);
+    Ok(nsh_platform_macos::run_app(
+        nsh_platform_macos::AppSource::Rust(
+            nsh_platform_macos::Root::of::<mixin_desktop_ui::App>()
+                .app_id("one.mixin.messenger.nsh")
+                .tokens(tokens),
+        ),
+        nsh_platform_macos::AppOptions {
+            title: "Mixin Messenger".into(),
+            app_id: "one.mixin.messenger.nsh".into(),
+            size: (1280, 750),
+            ..Default::default()
+        },
+    ))
+}
 
 #[cfg(target_os = "linux")]
 use nsh_platform_linux as platform;
-#[cfg(target_os = "macos")]
-use nsh_platform_macos as platform;
 #[cfg(target_os = "windows")]
 use nsh_platform_windows as platform;
 
+#[cfg(not(target_os = "macos"))]
 fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
     let directory = mixin_desktop_ui::data_directory()?;
     // Bot web profiles, the notification preview and the shell namespace read

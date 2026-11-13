@@ -26,6 +26,8 @@ macro_rules! fixture_image {
 mod appearance;
 mod attachment_progress;
 mod avatar;
+#[cfg(target_os = "macos")]
+mod bootstrap;
 mod bot;
 mod chat;
 mod composer;
@@ -72,6 +74,8 @@ use std::sync::Arc;
 
 #[native_module("mixin/native")]
 fn native(registry: &mut Registry) {
+    #[cfg(target_os = "macos")]
+    let _ = mixin_desktop_api::install_deferred_logging();
     registry.assets(package_assets::FILES);
     registry.register::<App>();
     #[cfg(debug_assertions)]
@@ -150,11 +154,26 @@ pub(crate) enum Phase {
 /// The application surface. Business services remain outside the UI tree.
 #[component]
 pub fn App() -> impl IntoElement {
+    #[cfg(target_os = "macos")]
+    {
+        bootstrap::surface(|| app_surface().into_element()).into_element()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        app_surface().into_element()
+    }
+}
+
+fn app_surface() -> impl IntoElement {
     let mut title_bar = nsh_core::desktop::TitleBarOptions::default();
     title_bar.style = nsh_core::desktop::TitleBarStyle::Hidden;
     title_bar.height = Some(ui::title_bar_requested_height());
     let mut window = nsh_core::desktop::WindowAttributes::default();
     window.title_bar = Some(title_bar);
+    #[cfg(target_os = "macos")]
+    {
+        window.close_on_press = Some(false);
+    }
     nsh_core::element::desktop::current_window().set(window);
     let i18n = i18n::I18n::new();
     provide_context(i18n);
@@ -289,6 +308,7 @@ pub fn data_directory() -> ClientResult<std::path::PathBuf> {
 #[cfg(target_os = "macos")]
 #[nsh_core::element::native_components(macos)]
 pub fn register_native_components(components: &nsh_platform_macos::Components) {
+    bootstrap::register(components);
     chat::register_image_input(components);
     bot::register_native_components(components);
     shell::register_native_components(components);

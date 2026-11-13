@@ -12,7 +12,7 @@ use crate::db::path;
 mod native;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use native::init;
+pub use native::{init, install_deferred};
 
 pub fn directory() -> Result<String> {
     Ok(path::log_directory()?.to_string_lossy().into_owned())

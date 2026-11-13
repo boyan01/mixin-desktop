@@ -3240,6 +3240,7 @@ dependencies = [
  "chrono",
  "emojis",
  "futures",
+ "hmac 0.13.0",
  "image",
  "log",
  "mixin_desktop_api",

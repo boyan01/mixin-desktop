@@ -40,3 +40,10 @@ pub fn write_log(target: &str, level: LogLevel, message: &str) {
     };
     log::log!(target: target, level, "{message}");
 }
+
+/// Reserves application logging before a native host installs its default logger.
+/// Does not access application data or start services.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn install_deferred_logging() -> ClientResult<()> {
+    logging::install_deferred().map_err(|error| ClientError::Internal(error.to_string()))
+}

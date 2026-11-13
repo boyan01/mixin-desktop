@@ -9,8 +9,10 @@ use tokio_util::task::{AbortOnDropHandle, TaskTracker};
 
 // Outlive NSH's engine so quitting can drain the business runtime.
 static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+static ACCEPTING_COMMITS: Mutex<bool> = Mutex::new(true);
 static COMMITS: OnceLock<TaskTracker> = OnceLock::new();
 static ACCOUNT: Mutex<Option<Arc<AccountClient>>> = Mutex::new(None);
+static DRAIN_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static SHUTDOWN: Mutex<Option<JoinHandle<()>>> = Mutex::new(None);
 
 fn runtime() -> &'static Runtime {
@@ -103,9 +105,15 @@ pub(crate) fn commit<T: Send + 'static>(
     future: impl Future<Output = ClientResult<T>> + Send + 'static,
 ) -> impl Future<Output = ClientResult<T>> {
     let caller = std::panic::Location::caller();
-    let task = COMMITS
-        .get_or_init(TaskTracker::new)
-        .spawn_on(future, runtime().handle());
+    let admission = ACCEPTING_COMMITS.lock().expect("commit admission");
+    let task = if *admission {
+        COMMITS
+            .get_or_init(TaskTracker::new)
+            .spawn_on(future, runtime().handle())
+    } else {
+        runtime().spawn(async { Err(ClientError::Internal("Application is shutting down".into())) })
+    };
+    drop(admission);
     async move {
         logged(
             caller,
@@ -155,33 +163,91 @@ pub fn quit_on_signal(quit: fn()) -> std::io::Result<AbortOnDropHandle<()>> {
 
 /// Drains account shutdown after the native event loop returns.
 pub fn finish_shutdown() {
+    runtime().block_on(drain_shutdown());
+}
+
+/// Completes committed writes and account shutdown before disposing the UI engine.
+pub async fn drain_shutdown() {
+    let _gate = DRAIN_GATE.lock().await;
+    *ACCEPTING_COMMITS.lock().expect("commit admission") = false;
     stop();
     let task = SHUTDOWN.lock().expect("shutdown lock").take();
-    runtime().block_on(async {
-        let drain = async {
-            // Process settings can be committed from the sign-in screen too.
-            // Their lifetime must not depend on retaining a signed-in account.
-            if let Some(commits) = COMMITS.get() {
-                commits.close();
-                commits.wait().await;
-            }
-            if let Some(task) = task {
-                let _ = AbortOnDropHandle::new(task).await;
-            }
-        };
-        if tokio::time::timeout(Duration::from_secs(10), drain)
-            .await
-            .is_err()
-        {
-            log::warn!("Timed out waiting for runtime shutdown");
+
+    if !drain_tasks(COMMITS.get().cloned(), task).await {
+        log::warn!("Timed out waiting for runtime shutdown");
+    }
+}
+
+async fn drain_tasks(commits: Option<TaskTracker>, task: Option<JoinHandle<()>>) -> bool {
+    let drain = async {
+        // Process settings can be committed from the sign-in screen too.
+        // Their lifetime must not depend on retaining a signed-in account.
+        if let Some(commits) = commits {
+            commits.close();
+            commits.wait().await;
         }
-    });
+        if let Some(task) = task {
+            let _ = AbortOnDropHandle::new(task).await;
+        }
+    };
+    tokio::time::timeout(Duration::from_secs(10), drain)
+        .await
+        .is_ok()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio::sync::oneshot;
+
+    #[tokio::test]
+    async fn shutdown_rejects_new_commits_without_executing_them() {
+        const CHILD: &str = "MIXIN_COMMIT_ADMISSION_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "runtime::tests::shutdown_rejects_new_commits_without_executing_them",
+                ])
+                .env(CHILD, "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        drain_shutdown().await;
+        let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let observed = executed.clone();
+        assert!(
+            commit(async move {
+                observed.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(())
+            })
+            .await
+            .is_err()
+        );
+        assert!(!executed.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn shutdown_drains_writes_beyond_the_engine_quit_budget() {
+        let tracker = TaskTracker::new();
+        let write = tracker.spawn(async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            42
+        });
+        assert!(drain_tasks(Some(tracker), None).await);
+        assert_eq!(write.await.unwrap(), 42);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn shutdown_bounds_a_stalled_account_and_aborts_it() {
+        let task = tokio::spawn(std::future::pending::<()>());
+        let abort = task.abort_handle();
+        assert!(!drain_tasks(None, Some(task)).await);
+        tokio::task::yield_now().await;
+        assert!(abort.is_finished());
+    }
 
     struct NotifyOnDrop(Option<oneshot::Sender<()>>);
 
