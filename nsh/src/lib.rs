@@ -41,6 +41,7 @@ mod login;
 mod motion;
 mod navigation;
 mod notifications;
+mod package_assets;
 mod playback;
 mod presentation;
 #[cfg(debug_assertions)]
@@ -71,6 +72,7 @@ use std::sync::Arc;
 
 #[native_module("mixin/native")]
 fn native(registry: &mut Registry) {
+    registry.assets(package_assets::FILES);
     registry.register::<App>();
     #[cfg(debug_assertions)]
     registry.register::<Preview>();
