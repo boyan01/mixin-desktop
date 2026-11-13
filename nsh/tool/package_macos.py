@@ -64,6 +64,8 @@ def main():
     shutil.copy2(workspace / "mixin_desktop_media/THIRD-PARTY-NOTICES.md",
                  resources / "Media-Third-Party-Notices.md")
     shutil.copy2(project / "assets/emoji.LICENSE", resources / "Emoji-LICENSE.txt")
+    # Notification Center resolves named sounds from the main bundle resources.
+    shutil.copy2(project / "assets/mixin.caf", resources / "mixin.caf")
     with tempfile.TemporaryDirectory(prefix="mixin-app-icon-") as temporary:
         iconset = Path(temporary) / "AppIcon.iconset"
         iconset.mkdir()

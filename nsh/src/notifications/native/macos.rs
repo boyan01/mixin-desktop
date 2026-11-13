@@ -214,7 +214,10 @@ impl NativeNotifications {
         content.setTitle(&NSString::from_str(&notification.title));
         content.setBody(&NSString::from_str(&notification.body));
         content.setThreadIdentifier(&NSString::from_str(&notification.conversation_id));
-        content.setSound(Some(&UNNotificationSound::defaultSound()));
+        // Match Flutter: let Notification Center play the bundled sound once.
+        content.setSound(Some(&UNNotificationSound::soundNamed(ns_string!(
+            "mixin.caf"
+        ))));
         let account_id = NSString::from_str(&notification.account_id);
         let conversation_id = NSString::from_str(&notification.conversation_id);
         let message_id = NSString::from_str(&notification.message_id);
