@@ -29,6 +29,8 @@ use document::{WireDocument, document, mention_tokens, mentions_differ, refresh_
 
 enum Command {
     Changed,
+    #[cfg(target_os = "macos")]
+    CloseWindow,
     Submit,
     Picker(String),
     Escape,
@@ -118,9 +120,19 @@ impl Input {
         selection: Signal<(u32, u32)>,
         write: Rc<dyn Fn(String)>,
     ) {
+        #[cfg(target_os = "macos")]
+        let window = nsh_core::element::desktop::current_window();
         spawn(async move {
             while let Some(command) = receive.recv().await {
                 match command {
+                    #[cfg(target_os = "macos")]
+                    Command::CloseWindow => {
+                        // Changed is queued first, publishing the committed draft
+                        // before the window can dispose this input's owner.
+                        if !self.composing() {
+                            window.close();
+                        }
+                    }
                     Command::Changed => {
                         let state = self.session.with(|session| session.state());
                         let wire = WireDocument::read(&state.doc().to_json());
@@ -541,6 +553,13 @@ impl PluginSpec for Behavior {
         // Also releases queued insertions after an IME cancellation, which may
         // change no document and therefore emit no session transaction.
         let _ = self.commands.send(Command::Changed);
+        // RichEditor captures Command+letters before the application menu,
+        // even when a plugin returns false. Route this window command here.
+        #[cfg(target_os = "macos")]
+        if key.meta && !(key.shift || key.alt || key.ctrl) && key.key.eq_ignore_ascii_case("w") {
+            let _ = self.commands.send(Command::CloseWindow);
+            return true;
+        }
         let plain = !(key.shift || key.alt || key.ctrl || key.meta || key.mod_key);
         if plain
             && self.picker_open.load(Ordering::Relaxed)

@@ -15,6 +15,7 @@ mod sidebar;
 mod sticker_store;
 mod stickers;
 mod stress;
+mod window_shortcuts;
 
 use std::time::Duration;
 
@@ -35,6 +36,11 @@ struct Scene {
 }
 
 const SCENES: &[Scene] = &[
+    Scene {
+        name: "window-shortcuts",
+        actions: window_shortcuts::ACTIONS,
+        mount: window_shortcuts::scene,
+    },
     Scene {
         name: "mentions",
         actions: mentions::ACTIONS,

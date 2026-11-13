@@ -48,12 +48,7 @@ pub(super) fn mount(shell: Handle) {
             Command::Transfer,
             signed,
         ));
-        file.extend([
-            MenuItem::separator(),
-            MenuItem::new(tr("Close window", "关闭窗口"))
-                .shortcut("mod+w")
-                .on_select(move || shell.hide()),
-        ]);
+        file.extend([MenuItem::separator(), close_item(shell)]);
         set_application_menu(vec![
             MenuItem::submenu(
                 "Mixin",
@@ -176,4 +171,20 @@ pub(super) fn mount(shell: Handle) {
             ),
         ]);
     });
+}
+
+fn close_item(shell: Handle) -> MenuItem {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = shell;
+        // AppKit routes performClose: to the key window, including auxiliary
+        // windows. The main window's keep-alive policy retains its draft.
+        MenuItem::role(MenuRole::Close).label(tr("Close window", "关闭窗口"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        MenuItem::new(tr("Close window", "关闭窗口"))
+            .shortcut("mod+w")
+            .on_select(move || shell.hide())
+    }
 }
