@@ -377,6 +377,7 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
 }
 
 #[cfg(debug_assertions)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn preview_page(
     kind: &str,
     own_id: String,
@@ -385,6 +386,7 @@ pub(crate) fn preview_page(
     users: Vec<mixin_desktop_api::UserProfileItem>,
     failed: Signal<bool>,
     media: Vec<mixin_desktop_api::MessageListView>,
+    close: impl Fn() + 'static,
 ) -> impl IntoElement {
     let profile = users
         .iter()
@@ -396,7 +398,7 @@ pub(crate) fn preview_page(
         account: stored(None),
         own_id: stored(own_id),
         id: stored(row.conversation_id.clone()),
-        close: stored(Rc::new(|| {}) as Rc<dyn Fn()>),
+        close: stored(Rc::new(close) as Rc<dyn Fn()>),
         row: signal_with(Some(row.clone()), SignalEquals::Never),
         detail: signal_with(
             Some(ConversationDetailItem {
@@ -499,7 +501,7 @@ pub(crate) fn preview_page(
 pub(crate) use user::preview_name;
 
 /// The sidebar is a navigation panel, drawn as the conversation list is: its
-/// solid surface, full-width sections and glass controls floating over the top.
+/// full-width sections and glass controls floating over the material.
 fn frame(state: State, content: impl IntoElement) -> View {
     let page = parts::floating_page(
         ui::surface_list,
@@ -547,7 +549,7 @@ fn frame(state: State, content: impl IntoElement) -> View {
             })),
         content,
     );
-    view().flex_1().min_h_0().bg(ui::surface_list).child(page)
+    view().flex_1().min_h_0().child(page)
 }
 
 #[cfg(debug_assertions)]

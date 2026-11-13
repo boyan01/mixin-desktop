@@ -347,7 +347,11 @@ pub(super) fn opacity_solid_pressed() -> f32 {
 
 /// The opacity of the chat wallpaper over its surface.
 pub(crate) fn chat_pattern_opacity() -> f32 {
-    number("chat-pattern-opacity")
+    number(if dark() {
+        "chat-pattern-opacity-dark"
+    } else {
+        "chat-pattern-opacity-light"
+    })
 }
 
 /// The app's type scale. Add a size only by adding a role to `theme.json`.

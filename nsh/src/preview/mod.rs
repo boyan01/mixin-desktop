@@ -6,6 +6,7 @@ mod button_pages;
 mod components;
 mod composer;
 mod fixtures;
+mod inspector;
 mod loading;
 mod messages;
 mod posts;
@@ -427,6 +428,11 @@ const SCENES: &[Scene] = &[
         name: "chat-switch",
         actions: messages::SWITCH_ACTIONS,
         mount: messages::switch,
+    },
+    Scene {
+        name: "chat-inspector",
+        actions: inspector::ACTIONS,
+        mount: inspector::scene,
     },
     Scene {
         name: "chat-chrome",

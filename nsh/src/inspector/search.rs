@@ -891,6 +891,7 @@ pub(crate) fn preview(
     rows: Vec<MessageListView>,
     members: Vec<ConversationParticipantItem>,
     state: Signal<&'static str>,
+    close: impl Fn() + Copy + 'static,
 ) -> View {
     let failed = signal(false);
     let sender_failed = signal(false);
@@ -930,5 +931,5 @@ pub(crate) fn preview(
             .open
             .set(matches!(state.get(), "Senders" | "Sender error"));
     });
-    content(results, senders, element_ref(), || {}, signal(None))
+    content(results, senders, element_ref(), close, signal(None))
 }

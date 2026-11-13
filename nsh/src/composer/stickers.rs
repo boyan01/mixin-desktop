@@ -220,6 +220,7 @@ pub(crate) fn stickers(
     view()
         .child(
             ui::popover_flush()
+                .popup_style(|style| ui::glass(style).rounded(ui::radius_lg()).overflow_hidden())
                 .open(move || Some(state.open.get()))
                 .on_open_change(move |event: &PopoverEvent| {
                     if let PopoverEvent::OpenChange(value, _) = event
@@ -540,7 +541,6 @@ pub(crate) fn panel_surface(
                 .h(ui::sticker_tab_bar_height())
                 .flex_shrink_0()
                 .overflow_hidden()
-                .bg(ui::surface_card)
                 .child(
                     scroll()
                         .horizontal()

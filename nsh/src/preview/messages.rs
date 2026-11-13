@@ -230,7 +230,7 @@ pub(super) fn timeline_view(list: impl IntoElement) -> View {
                 .inset_0()
                 .size_full()
                 .object_fit(ResizeMode::Cover)
-                .opacity(ui::chat_pattern_opacity()),
+                .opacity(ui::chat_pattern_opacity),
         )
         .child(list)
 }

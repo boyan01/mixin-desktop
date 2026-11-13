@@ -16,16 +16,8 @@ pub(crate) fn screen(
     destination: Panel,
     close: impl Fn() + Copy + 'static,
     target: Signal<Option<String>>,
-    compact: impl Fn() -> bool + Copy + 'static,
 ) -> impl IntoElement {
-    let panel = view()
-        .w(ui::sidebar_width)
-        .flex_shrink_0()
-        .min_h_0()
-        .style_with(move |s| if compact() { s.flex_1().min_w_0() } else { s })
-        .bg(ui::surface_list)
-        .border_l_1()
-        .border_color(ui::border);
+    let panel = view().flex_1().min_w_0().min_h_0();
     if destination == Panel::Info {
         return panel
             .child(conversation::screen(account, id, target, close))
@@ -43,3 +35,65 @@ pub(crate) fn screen(
 
 #[cfg(debug_assertions)]
 pub(crate) use {pinned::preview as preview_pinned, search::preview as preview_search};
+
+/// A modeless inspector above the chat. Only its surface receives pointer input;
+/// the timeline keeps its full width throughout opening and closing.
+pub(crate) fn overlay(
+    destination: Signal<Option<Panel>>,
+    content: impl Fn(Panel) -> AnyElement + Copy + 'static,
+) -> View {
+    let progress = crate::motion::Tween::new(if destination.get_untracked().is_some() {
+        1.0
+    } else {
+        0.0
+    });
+    effect(move || {
+        let open = destination.get().is_some();
+        untracked(|| {
+            progress.to(
+                if open { 1.0 } else { 0.0 },
+                crate::motion::PANEL_WIDTH.duration_ms,
+            )
+        });
+    });
+    let shown = signal(destination.get_untracked());
+    effect(move || {
+        if let Some(mode) = destination.get() {
+            shown.set(Some(mode));
+        }
+    });
+    view()
+        .absolute()
+        .inset_0()
+        .p_2()
+        .items_end()
+        .overflow_hidden()
+        .pointer_events(PointerEvents::BoxNone)
+        .child(when(
+            move || destination.get().is_some() || progress.get() > 0.0,
+            move || {
+                ui::glass(view())
+                    .w(ui::sidebar_width)
+                    .max_w(relative(1.0))
+                    .flex_1()
+                    .min_h_0()
+                    .rounded(ui::radius_lg())
+                    .overflow_hidden()
+                    .translate_x(move || {
+                        px((ui::sidebar_width().0 + ui::space_sm().0) * (1.0 - progress.get()))
+                    })
+                    .accessibility_elements_hidden(move || destination.get().is_none())
+                    .pointer_events(move || {
+                        if destination.get().is_some() {
+                            PointerEvents::Auto
+                        } else {
+                            PointerEvents::None
+                        }
+                    })
+                    .child(dynamic(move || {
+                        let mode = shown.get();
+                        untracked(|| mode.map(content).unwrap_or_else(|| view().into_element()))
+                    }))
+            },
+        ))
+}

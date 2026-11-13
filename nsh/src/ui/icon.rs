@@ -192,14 +192,34 @@ pub(crate) fn logo() -> Image {
 }
 
 pub(crate) fn wallpaper() -> Image {
-    static SOURCE: std::sync::LazyLock<SharedString> = std::sync::LazyLock::new(|| {
-        format!(
-            "data:image/png;base64,{}",
-            STANDARD.encode(include_bytes!("../../assets/chat_background.png"))
-        )
-        .into()
+    // Flutter chat_page.dart uses srcIn: preserve the bitmap alpha and replace
+    // its RGB with black (light) or white (dark). Opacity is applied by the caller.
+    static SOURCES: std::sync::LazyLock<[SharedString; 2]> = std::sync::LazyLock::new(|| {
+        [0, 255].map(|tint| {
+            let mut bitmap =
+                ::image::load_from_memory(include_bytes!("../../assets/chat_background.png"))
+                    .expect("Bundled chat wallpaper is valid")
+                    .to_rgba8();
+            for pixel in bitmap.pixels_mut() {
+                pixel.0[..3].fill(tint);
+            }
+            use ::image::{
+                ImageEncoder,
+                codecs::png::{CompressionType, FilterType, PngEncoder},
+            };
+            let mut png = Vec::new();
+            PngEncoder::new_with_quality(&mut png, CompressionType::Fast, FilterType::NoFilter)
+                .write_image(
+                    bitmap.as_raw(),
+                    bitmap.width(),
+                    bitmap.height(),
+                    ::image::ExtendedColorType::Rgba8,
+                )
+                .expect("Wallpaper encodes as PNG");
+            format!("data:image/png;base64,{}", STANDARD.encode(png)).into()
+        })
     });
-    image(SOURCE.clone())
+    image(move || SOURCES[usize::from(dark())].clone())
 }
 
 pub(crate) fn inscription_background() -> Image {

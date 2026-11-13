@@ -34,6 +34,14 @@ enum Command {
     Escape,
 }
 
+#[derive(Clone, Copy)]
+enum EditAction {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
+}
+
 /// An owner-scoped input, shared only with the composer's existing commands.
 #[derive(Clone, Copy)]
 pub(crate) struct Input {
@@ -207,6 +215,101 @@ impl Input {
         }
     }
 
+    fn edit_menu(self, position: Point<Points>, sending: Memo<bool>) {
+        use nsh_core::element::desktop::{MenuItem, popup_menu_at};
+        let i18n = crate::i18n::current();
+        let session = self.session.with(|session| session.clone());
+        // Resolve clipboard availability at opening, rather than retaining stale state.
+        spawn(async move {
+            let paste = clipboard_has_string().await;
+            let state = session.state();
+            let selected = !state.selection().empty();
+            let editable = !sending.get_untracked() && !session.composing();
+            let mut items = Vec::new();
+            for (label, chinese, action, disabled) in [
+                ("Cut", "剪切", EditAction::Cut, !selected || !editable),
+                (
+                    "Copy",
+                    "复制",
+                    EditAction::Copy,
+                    !selected || session.composing(),
+                ),
+                ("Paste", "粘贴", EditAction::Paste, !paste || !editable),
+                (
+                    "Select All",
+                    "全选",
+                    EditAction::SelectAll,
+                    state.doc().content().size() <= 2 || session.composing(),
+                ),
+            ] {
+                items.push(
+                    MenuItem::new(i18n.tr(label, chinese))
+                        .disabled(disabled)
+                        .on_select(move || {
+                            self.edit(action, sending);
+                        }),
+                );
+            }
+            drop(popup_menu_at(items, position));
+        });
+    }
+
+    fn edit(self, action: EditAction, sending: Memo<bool>) {
+        let session = self.session.with(|session| session.clone());
+        if session.composing()
+            || (matches!(action, EditAction::Cut | EditAction::Paste) && sending.get_untracked())
+        {
+            return;
+        }
+        session.focus();
+        if matches!(action, EditAction::Paste) {
+            spawn(async move {
+                let text = clipboard_string().await;
+                if text.is_empty() || session.composing() || sending.get_untracked() {
+                    return;
+                }
+                let state = session.state();
+                // Match the composer's plain-text paste policy, preserving line breaks.
+                let doc = state
+                    .schema()
+                    .node_from_json(&document(&text, &HashMap::new()));
+                if let Ok(doc) = doc {
+                    let mut transaction = state.tr();
+                    transaction.replace_selection(Slice::new(doc.content().clone(), 1, 1));
+                    if let Err(error) = session.dispatch(transaction) {
+                        log::warn!("Could not paste composer text: {error}");
+                    }
+                }
+            });
+            return;
+        }
+        let state = session.state();
+        let mut transaction = state.tr();
+        if matches!(action, EditAction::SelectAll) {
+            transaction.set_selection(TextSelection::create(
+                state.doc(),
+                1,
+                Some(state.doc().content().size().saturating_sub(1)),
+            ));
+        } else {
+            if state.selection().empty() {
+                return;
+            }
+            if let Some(text) = state.some_prop(|plugin| {
+                plugin.clipboard_text_serializer(&state, &state.selection().content())
+            }) {
+                set_clipboard(text);
+            }
+            if matches!(action, EditAction::Copy) {
+                return;
+            }
+            transaction.delete_selection();
+        }
+        if let Err(error) = session.dispatch(transaction) {
+            log::warn!("Could not edit composer selection: {error}");
+        }
+    }
+
     pub fn view(
         self,
         placeholder: impl Fn() -> String + 'static,
@@ -289,6 +392,9 @@ impl Input {
             .on_paste_files(
                 move |event: &nsh_base::rich_editor::view::RichEditorPastedFiles| pasted(event),
             );
+        let editor = editor.on_context_menu(move |event: &ContextMenuEvent| {
+            self.edit_menu(event.page_position, sending);
+        });
         view().min_w_0().overflow_hidden().child(
             scroll()
                 .element_ref(&scroll_ref)

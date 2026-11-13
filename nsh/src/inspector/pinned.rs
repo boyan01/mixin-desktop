@@ -478,7 +478,12 @@ fn reader_view(
 }
 
 #[cfg(debug_assertions)]
-pub(crate) fn preview(rows: Vec<MessageListView>, own_id: String, failed: Signal<bool>) -> View {
+pub(crate) fn preview(
+    rows: Vec<MessageListView>,
+    own_id: String,
+    failed: Signal<bool>,
+    close: impl Fn() + Copy + 'static,
+) -> View {
     let total = rows.len();
     let state = Pinned {
         account: stored(None),
@@ -499,5 +504,5 @@ pub(crate) fn preview(rows: Vec<MessageListView>, own_id: String, failed: Signal
         preview: MediaPreview::detached(own_id),
         owner: Owner::current(),
     };
-    reader_view(state, || {}, |_| {}, crate::chat::message_media::viewport())
+    reader_view(state, close, |_| {}, crate::chat::message_media::viewport())
 }

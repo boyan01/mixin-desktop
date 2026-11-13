@@ -76,31 +76,7 @@ pub(crate) fn screen(
     let chat_navigation =
         use_context::<crate::navigation::ChatNavigation>().expect("Home provides chat navigation");
     let side = chat_navigation.panel;
-    // The panel's slot widens on the frame clock and the conversation lays out
-    // at each width, so its rows reflow in place instead of sliding between
-    // two layouts; the panel, pinned to the slot's trailing edge, slides in.
-    let panel_width = crate::motion::Tween::new(if side.get_untracked().is_some() {
-        1.0
-    } else {
-        0.0
-    });
-    effect(move || {
-        let open = side.get().is_some();
-        untracked(|| {
-            panel_width.to(
-                if open { 1.0 } else { 0.0 },
-                crate::motion::PANEL_WIDTH.duration_ms,
-            )
-        });
-    });
-    let panel_mounted = computed(move || side.get().is_some() || panel_width.get() > 0.0);
-    let shown_panel = signal(side.get_untracked());
-    effect(move || {
-        if let Some(mode) = side.get() {
-            shown_panel.set(Some(mode));
-        }
-    });
-    let covered = computed(move || panel_mounted.get() && narrow_detail());
+    let covered = computed(move || side.get().is_some() && narrow_detail());
     let group = conversation.category == "GROUP";
     let header = signal(conversation.clone());
     let detail_account = stored(account.clone());
@@ -268,18 +244,14 @@ pub(crate) fn screen(
                 .min_h_0()
                 .relative()
                 .overflow_hidden()
-                .style_when(move || covered.get(), |style| style.hidden())
-                // Sized by the window and pinned to the leading edge, so a
-                // panel beside the chat clips the pattern instead of rescaling it.
+                // Match Flutter BoxFit.cover within the chat bounds.
                 .child(
                     ui::wallpaper()
                         .absolute()
-                        .top_0()
-                        .left_0()
-                        .w(move || window().width)
-                        .h(move || window().height)
+                        .inset_0()
+                        .size_full()
                         .object_fit(ResizeMode::Cover)
-                        .opacity(ui::chat_pattern_opacity()),
+                        .opacity(ui::chat_pattern_opacity),
                 )
                 .bg(ui::surface_chat)
                 .on_layout(move |bounds: &Bounds<Points>| {
@@ -444,64 +416,16 @@ pub(crate) fn screen(
         ))
         .child(message_forward::forwarding(actions))
         .child(message_detail::preview(actions))
-        .child(
-            view()
-                .flex_row()
-                .min_h_0()
-                .overflow_hidden()
-                .justify_end()
-                .style_with(move |style| {
-                    if !panel_mounted.get() {
-                        style.w(px(0.0)).flex_shrink_0()
-                    } else if narrow_detail() {
-                        style.flex_1().min_w_0()
-                    } else {
-                        style
-                            .w(px(ui::sidebar_width().0 * panel_width.get()))
-                            .flex_shrink_0()
-                    }
-                })
-                .child(when(
-                    move || panel_mounted.get(),
-                    move || {
-                        let open = move || side.get().is_some();
-                        view()
-                            .flex_row()
-                            .min_h_0()
-                            .flex_shrink_0()
-                            .accessibility_elements_hidden(move || !open())
-                            .pointer_events(move || {
-                                if open() {
-                                    PointerEvents::Auto
-                                } else {
-                                    PointerEvents::None
-                                }
-                            })
-                            .style_with(move |style| {
-                                if narrow_detail() {
-                                    style.flex_1().min_w_0()
-                                } else {
-                                    style.w(ui::sidebar_width)
-                                }
-                            })
-                            .child(dynamic(move || {
-                                let mode = shown_panel.get();
-                                untracked(|| match mode {
-                                    Some(mode) => inspector::screen(
-                                        detail_account.with(|account| account.clone()),
-                                        detail_id.with(|id| id.clone()),
-                                        mode,
-                                        move || chat_navigation.back_panel(),
-                                        target,
-                                        narrow_detail,
-                                    )
-                                    .into_element(),
-                                    None => view().hidden().into_element(),
-                                })
-                            }))
-                    },
-                )),
-        )
+        .child(inspector::overlay(side, move |mode| {
+            inspector::screen(
+                detail_account.with(|account| account.clone()),
+                detail_id.with(|id| id.clone()),
+                mode,
+                move || chat_navigation.back_panel(),
+                target,
+            )
+            .into_element()
+        }))
 }
 
 /// The chrome floating over the top of the timeline: the title bar, the pinned

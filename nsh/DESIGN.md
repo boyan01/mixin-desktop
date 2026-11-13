@@ -323,9 +323,13 @@ with a quiet retry command.
 
 ## Chat information sidebar
 
-The sidebar is a navigation panel, as in Telegram's: the conversation list's
-solid surface (`surface_list`), no wallpaper and no cards. Rows are drawn as
-the conversation list's are: inset 8pt from the panel's edges, rounded, with no
+The sidebar floats above the full-width chat as a modeless `ui::glass` surface,
+inset 8pt with an 11pt radius. Opening and closing translate only the inspector;
+chat rows, chrome and composer retain their geometry, including in narrow windows.
+Its preferred width is 300pt, clamped to the chat's available width. Only the
+inspector receives presses within its bounds; uncovered chat remains interactive.
+Detail pages have no opaque root fill, so the chat supplies the material's backdrop.
+Rows are drawn as the conversation list's are: inset 8pt from the panel's edges, rounded, with no
 hairlines, apart only by their hover and selected fills. Space parts one section
 (`parts::group`) from the next. Each page header floats over its body
 (`parts::floating_page`) with glass Back or Close buttons; the body scrolls

@@ -166,6 +166,7 @@ fn conversation(kind: &str, actions: Actions) -> View {
         fixtures::users(),
         failed,
         fixtures::messages::photo_rows(),
+        || {},
     );
     if kind == "invite" {
         dialog_host(content)
@@ -276,6 +277,7 @@ pub(super) fn add_members(actions: Actions) -> View {
         fixtures::users(),
         failed,
         fixtures::messages::photo_rows(),
+        || {},
     ))
 }
 pub(super) fn forward(actions: Actions) -> View {
@@ -563,6 +565,7 @@ pub(super) fn info(actions: Actions) -> View {
                 fixtures::users(),
                 signal(mode == "Error"),
                 fixtures::messages::photo_rows(),
+                || {},
             )
         })
     }))
@@ -601,6 +604,7 @@ pub(super) fn contact_info(actions: Actions) -> View {
                 users,
                 signal(mode == "Error"),
                 Vec::new(),
+                || {},
             )
         })
     }))
@@ -661,6 +665,7 @@ pub(super) fn pinned_messages(actions: Actions) -> View {
         fixtures::messages::text_rows(),
         fixtures::USER_ID.into(),
         failed,
+        || {},
     ))
 }
 pub(super) fn message_search(actions: Actions) -> View {
@@ -669,6 +674,7 @@ pub(super) fn message_search(actions: Actions) -> View {
         fixtures::messages::text_rows(),
         fixtures::participants(),
         mode(actions, SEARCH_ACTIONS),
+        || {},
     ))
 }
 pub(super) fn global_search(actions: Actions) -> View {
