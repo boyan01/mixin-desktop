@@ -31,7 +31,7 @@ pub(crate) use message_row::{
     Detached as DetachedMessages, detached_list as detached_message_list,
 };
 #[cfg(debug_assertions)]
-pub(crate) use timeline::{FOCUS, Motion, place as place_jump};
+pub(crate) use timeline::{FOCUS, Motion, blink, place as place_jump};
 mod message_selection;
 mod message_snapshot;
 mod message_system;
@@ -76,24 +76,31 @@ pub(crate) fn screen(
     let chat_navigation =
         use_context::<crate::navigation::ChatNavigation>().expect("Home provides chat navigation");
     let side = chat_navigation.panel;
-    let panel_presence = crate::motion::Presence::fade(move || side.get().is_some());
+    // The panel's slot widens on the frame clock and the conversation lays out
+    // at each width, so its rows reflow in place instead of sliding between
+    // two layouts; the panel, pinned to the slot's trailing edge, slides in.
+    let panel_width = crate::motion::Tween::new(if side.get_untracked().is_some() {
+        1.0
+    } else {
+        0.0
+    });
+    effect(move || {
+        let open = side.get().is_some();
+        untracked(|| {
+            panel_width.to(
+                if open { 1.0 } else { 0.0 },
+                crate::motion::PANEL_WIDTH.duration_ms,
+            )
+        });
+    });
+    let panel_mounted = computed(move || side.get().is_some() || panel_width.get() > 0.0);
     let shown_panel = signal(side.get_untracked());
     effect(move || {
         if let Some(mode) = side.get() {
             shown_panel.set(Some(mode));
         }
     });
-    let covered = computed(move || panel_presence.mounted() && narrow_detail());
-    // The panel's slot eases its width, and the conversation beside it follows.
-    let panel_slot = element_ref();
-    let panel_open = computed(move || side.get().is_some());
-    let first_panel_state = stored(true);
-    effect(move || {
-        panel_open.get();
-        if !first_panel_state.replace(false) && !reduce_motion() {
-            panel_slot.animate_layout(crate::motion::PANEL_WIDTH);
-        }
-    });
+    let covered = computed(move || panel_mounted.get() && narrow_detail());
     let group = conversation.category == "GROUP";
     let header = signal(conversation.clone());
     let detail_account = stored(account.clone());
@@ -166,19 +173,6 @@ pub(crate) fn screen(
     let timeline =
         timeline::Timeline::mount(conversation.clone(), target, history, messages, actions);
     let loading = timeline.loading;
-    // A page usually arrives within a frame or two: an indicator shows only for a slow one.
-    let slow_loading = signal(false);
-    effect(move || {
-        if loading.get() {
-            set_timeout(std::time::Duration::from_millis(400), move || {
-                if loading.get_untracked() {
-                    slow_loading.set(true);
-                }
-            });
-        } else {
-            slow_loading.set(false);
-        }
-    });
     let failed = timeline.failed;
     // Once: the pane holding the previous chat gives way to this one.
     let announced = stored(false);
@@ -202,8 +196,8 @@ pub(crate) fn screen(
         unobstructed,
         transcript: None,
     };
-    // Escape steps back one layer: the selection, then the side panel. The composer takes
-    // its own Escape for a quote, and inputs keep theirs.
+    // Escape steps back one layer: the reply, the selection, then the side panel.
+    // Inputs keep theirs.
     on_key_with(
         "escape",
         KeyOptions {
@@ -211,6 +205,13 @@ pub(crate) fn screen(
             ..KeyOptions::default()
         },
         move |_| {
+            // A reply is the nearest layer: Escape cancels it first. The
+            // composer's own binding does the same while the input has focus.
+            if !navigation.settings.get_untracked() && actions.quote.with_untracked(Option::is_some)
+            {
+                actions.quote.set(None);
+                return;
+            }
             if navigation.settings.get_untracked()
                 || actions.preview.with_untracked(Option::is_some)
                 || actions.forwarding.with_untracked(|ids| !ids.is_empty())
@@ -241,6 +242,10 @@ pub(crate) fn screen(
     // must stay readable starts below its measured height.
     let chrome_height = signal(0.0_f32);
     let chrome_inset = move || px(chrome_height.get());
+    // The composer floats over the bottom the same way; the newest rows scroll
+    // up from under it, past a scroll padding of its height.
+    let composer_height = signal(0.0_f32);
+    let composer_inset = move || px(composer_height.get());
     let chat_width = signal(0.0_f32);
     let inline_pin = computed(move || chat_width.get() >= ui::glass_inline_pin_width().0);
     view()
@@ -262,12 +267,17 @@ pub(crate) fn screen(
                 .min_w_0()
                 .min_h_0()
                 .relative()
+                .overflow_hidden()
                 .style_when(move || covered.get(), |style| style.hidden())
+                // Sized by the window and pinned to the leading edge, so a
+                // panel beside the chat clips the pattern instead of rescaling it.
                 .child(
                     ui::wallpaper()
                         .absolute()
-                        .inset_0()
-                        .size_full()
+                        .top_0()
+                        .left_0()
+                        .w(move || window().width)
+                        .h(move || window().height)
                         .object_fit(ResizeMode::Cover)
                         .opacity(ui::chat_pattern_opacity()),
                 )
@@ -278,22 +288,15 @@ pub(crate) fn screen(
                         chat_width.set(width);
                     }
                 })
-                .child(when(loading, move || {
+                .child(when(no_rows, move || {
                     view()
                         .flex_1()
                         .pt(chrome_inset)
-                        .items_center()
-                        .justify_center()
-                        .child(ui::busy_indicator(
-                            move || slow_loading.get(),
-                            move || i18n.text(Key::LoadingMessages).into(),
+                        .pb(composer_inset)
+                        .child(ui::empty(
+                            move || i18n.text(Key::NoMessages),
+                            move || i18n.text(Key::NoMessagesBody),
                         ))
-                }))
-                .child(when(no_rows, move || {
-                    view().flex_1().pt(chrome_inset).child(ui::empty(
-                        move || i18n.text(Key::NoMessages),
-                        move || i18n.text(Key::NoMessagesBody),
-                    ))
                 }))
                 .child(when(
                     move || no_rows() && show_encryption(),
@@ -304,13 +307,18 @@ pub(crate) fn screen(
                         .flex_1()
                         .min_h_0()
                         .relative()
-                        .on_layout(media_viewport)
+                        .on_layout(move |bounds: &Bounds<Points>| {
+                            media_viewport(bounds);
+                            timeline.reveal.measure(bounds.size.height.0);
+                        })
                         .child(
                             timeline.reveal.surface(view().flex_1().min_h_0()).child(
                                 virtual_list(
                                     move || messages.with(Vec::len),
                                     move |at| rows.row(at),
                                 )
+                                // The newest end of the inverted list: room under the composer.
+                                .header(view().h(composer_inset))
                                 // The oldest end of the inverted list: room under the chrome.
                                 .footer(view().child(view().h(chrome_inset)).child(when(
                                     move || {
@@ -347,17 +355,8 @@ pub(crate) fn screen(
                         .child(
                             view()
                                 .absolute()
-                                .left_0()
-                                .right_0()
-                                .top(chrome_inset)
-                                .pointer_events(PointerEvents::BoxNone)
-                                .child(timeline.paging_indicator(i18n)),
-                        )
-                        .child(
-                            view()
-                                .absolute()
                                 .right_4()
-                                .bottom_4()
+                                .bottom(move || px(composer_height.get() + ui::space_lg().0))
                                 .gap_2()
                                 .items_end()
                                 .child(unread.jump_button(i18n))
@@ -368,21 +367,37 @@ pub(crate) fn screen(
                             |style| style.hidden(),
                         ),
                 )
-                .child(compose::bar(compose::Props {
-                    account: account.clone(),
-                    conversation_id: conversation.conversation_id.clone(),
-                    header,
-                    group,
-                    encrypted,
-                    actions,
-                    eligibility,
-                    target,
-                    drafts,
-                    pending,
-                    session_owner,
-                    incoming_files,
-                    focus_layout,
-                }))
+                .child(
+                    view()
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .pointer_events(PointerEvents::BoxNone)
+                        .on_layout(move |bounds: &Bounds<Points>| {
+                            let value = bounds.size.height.0;
+                            if composer_height.get_untracked() != value {
+                                composer_height.set(value);
+                                timeline.reveal.measure_bottom(value);
+                            }
+                        })
+                        .child(ui::edge_fade(false, ui::surface_chat))
+                        .child(compose::bar(compose::Props {
+                            account: account.clone(),
+                            conversation_id: conversation.conversation_id.clone(),
+                            header,
+                            group,
+                            encrypted,
+                            actions,
+                            eligibility,
+                            target,
+                            drafts,
+                            pending,
+                            session_owner,
+                            incoming_files,
+                            focus_layout,
+                        })),
+                )
                 .child(chrome(
                     chrome_height,
                     pinned,
@@ -431,43 +446,59 @@ pub(crate) fn screen(
         .child(message_detail::preview(actions))
         .child(
             view()
-                .element_ref(&panel_slot)
                 .flex_row()
                 .min_h_0()
                 .overflow_hidden()
+                .justify_end()
                 .style_with(move |style| {
-                    if !panel_open.get() {
+                    if !panel_mounted.get() {
                         style.w(px(0.0)).flex_shrink_0()
                     } else if narrow_detail() {
                         style.flex_1().min_w_0()
                     } else {
-                        style.w(ui::sidebar_width).flex_shrink_0()
+                        style
+                            .w(px(ui::sidebar_width().0 * panel_width.get()))
+                            .flex_shrink_0()
                     }
                 })
                 .child(when(
-                    move || panel_presence.mounted(),
+                    move || panel_mounted.get(),
                     move || {
-                        panel_presence.surface(
-                            view()
-                                .flex_row()
-                                .min_h_0()
-                                .style_when(narrow_detail, |style| style.flex_1().min_w_0())
-                                .child(dynamic(move || {
-                                    let mode = shown_panel.get();
-                                    untracked(|| match mode {
-                                        Some(mode) => inspector::screen(
-                                            detail_account.with(|account| account.clone()),
-                                            detail_id.with(|id| id.clone()),
-                                            mode,
-                                            move || chat_navigation.back_panel(),
-                                            target,
-                                            narrow_detail,
-                                        )
-                                        .into_element(),
-                                        None => view().hidden().into_element(),
-                                    })
-                                })),
-                        )
+                        let open = move || side.get().is_some();
+                        view()
+                            .flex_row()
+                            .min_h_0()
+                            .flex_shrink_0()
+                            .accessibility_elements_hidden(move || !open())
+                            .pointer_events(move || {
+                                if open() {
+                                    PointerEvents::Auto
+                                } else {
+                                    PointerEvents::None
+                                }
+                            })
+                            .style_with(move |style| {
+                                if narrow_detail() {
+                                    style.flex_1().min_w_0()
+                                } else {
+                                    style.w(ui::sidebar_width)
+                                }
+                            })
+                            .child(dynamic(move || {
+                                let mode = shown_panel.get();
+                                untracked(|| match mode {
+                                    Some(mode) => inspector::screen(
+                                        detail_account.with(|account| account.clone()),
+                                        detail_id.with(|id| id.clone()),
+                                        mode,
+                                        move || chat_navigation.back_panel(),
+                                        target,
+                                        narrow_detail,
+                                    )
+                                    .into_element(),
+                                    None => view().hidden().into_element(),
+                                })
+                            }))
                     },
                 )),
         )
@@ -495,6 +526,7 @@ fn chrome(
                 height.set(value);
             }
         })
+        .child(ui::edge_fade(true, ui::surface_chat))
         .child(title)
         .child(
             view()
@@ -513,10 +545,11 @@ fn chrome(
 
 /// The floating chrome over fixed rows, for the debug preview: no account.
 #[cfg(debug_assertions)]
-pub(crate) fn preview_chrome(
+pub(crate) fn preview_chrome<E: IntoElement>(
     row: ConversationListData,
     pin: Signal<Option<String>>,
-    list: impl IntoElement,
+    list: impl FnOnce(Signal<f32>, Signal<f32>) -> E,
+    composer: impl IntoElement,
 ) -> impl IntoElement {
     let header = signal(row);
     let group = header.with_untracked(|row| row.category == "GROUP");
@@ -525,6 +558,7 @@ pub(crate) fn preview_chrome(
         .panel;
     let pinned = pinned::Pinned::detached(pin, side);
     let height = signal(0.0_f32);
+    let bottom = signal(0.0_f32);
     let width = signal(0.0_f32);
     let inline_pin = computed(move || width.get() >= ui::glass_inline_pin_width().0);
     view()
@@ -532,12 +566,17 @@ pub(crate) fn preview_chrome(
         .min_h_0()
         .relative()
         .on_layout(move |bounds: &Bounds<Points>| width.set(bounds.size.width.0))
+        .child(view().flex_1().min_h_0().child(list(height, bottom)))
         .child(
             view()
-                .flex_1()
-                .min_h_0()
-                .pt(move || px(height.get()))
-                .child(list),
+                .absolute()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .pointer_events(PointerEvents::BoxNone)
+                .on_layout(move |bounds: &Bounds<Points>| bottom.set(bounds.size.height.0))
+                .child(ui::edge_fade(false, ui::surface_chat))
+                .child(composer),
         )
         .child(chrome(
             height,

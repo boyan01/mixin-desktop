@@ -301,31 +301,24 @@ impl Rows {
                                                 highlight_opacity,
                                             )
                                         }))
-                                        .child(
-                                            message_appearance::bubble(
+                                        .child({
+                                            // The whole bubble hosts the menu: its padding
+                                            // and the time and lock over it, not only the body.
+                                            let bubble = message_appearance::bubble(
                                                 view(),
                                                 move || mine() && !neutral.get(),
                                                 surface,
                                             )
-                                            .child({
-                                                let body = view()
+                                            .child(
+                                                view()
                                                     .min_w_0()
                                                     .rounded(ui::radius_md())
                                                     .style_when(
                                                         move || !frame.get().own_bubble,
                                                         |style| style.overflow_hidden(),
                                                     )
-                                                    .child(body);
-                                                if let Some(root) = self.transcript {
-                                                    super::message_transcript::row_menu(
-                                                        message, root, actions, body,
-                                                    )
-                                                    .into_element()
-                                                } else {
-                                                    message_actions::menu(message, actions, body)
-                                                        .into_element()
-                                                }
-                                            })
+                                                    .child(body),
+                                            )
                                             .child(when(highlighted, move || {
                                                 view()
                                                     .absolute()
@@ -343,25 +336,32 @@ impl Rows {
                                                     .bind_opacity(&highlight_opacity)
                                                     .pointer_events(PointerEvents::None)
                                             }))
-                                            .child(
-                                                when(
-                                                    move || frame.get().stamp == Stamp::Inline,
-                                                    move || {
-                                                        view()
-                                                            .absolute()
-                                                            .right(ui::space_sm())
-                                                            .bottom(ui::space_sm())
-                                                            .style_when(captioned, |style| {
-                                                                style
-                                                                    .right(ui::space_md())
-                                                                    .bottom(ui::chip_inset())
-                                                            })
-                                                            .pointer_events(PointerEvents::None)
-                                                            .child(stamp(Stamp::Inline))
-                                                    },
-                                                ),
-                                            ),
-                                        ),
+                                            .child(when(
+                                                move || frame.get().stamp == Stamp::Inline,
+                                                move || {
+                                                    view()
+                                                        .absolute()
+                                                        .right(ui::space_sm())
+                                                        .bottom(ui::space_sm())
+                                                        .style_when(captioned, |style| {
+                                                            style
+                                                                .right(ui::space_md())
+                                                                .bottom(ui::chip_inset())
+                                                        })
+                                                        .pointer_events(PointerEvents::None)
+                                                        .child(stamp(Stamp::Inline))
+                                                },
+                                            ));
+                                            if let Some(root) = self.transcript {
+                                                super::message_transcript::row_menu(
+                                                    message, root, actions, bubble,
+                                                )
+                                                .into_element()
+                                            } else {
+                                                message_actions::menu(message, actions, bubble)
+                                                    .into_element()
+                                            }
+                                        }),
                                 )
                                 .child(when(
                                     move || frame.get().stamp == Stamp::Below,
@@ -516,6 +516,9 @@ pub(crate) struct Detached {
     pub highlight: Signal<Option<String>>,
     pub highlight_opacity: nsh_core::element::AnimatedValue,
     pub reveal: super::timeline::Reveal,
+    /// Scroll padding at the oldest (top) and newest (bottom) ends, as the
+    /// chat leaves under its floating chrome and composer.
+    pub insets: (Signal<f32>, Signal<f32>),
 }
 
 #[cfg(debug_assertions)]
@@ -527,6 +530,7 @@ impl Detached {
             highlight: signal_with(None, SignalEquals::Never),
             highlight_opacity: animated_value(0.0),
             reveal: super::timeline::Reveal::new(),
+            insets: (signal(0.0), signal(0.0)),
         }
     }
 }
@@ -546,6 +550,7 @@ pub(crate) fn detached_list(
         highlight,
         highlight_opacity,
         reveal,
+        insets: (top, bottom),
     } = list;
     let viewable = signal(None::<(usize, usize)>);
     let rows = Rows {
@@ -562,24 +567,35 @@ pub(crate) fn detached_list(
         unobstructed: computed(|| true),
         transcript: None,
     };
-    view().flex_1().min_h_0().on_layout(media_viewport).child(
-        reveal.surface(view().flex_1().min_h_0()).child(
-            virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
-                .keys(move || {
-                    messages.with(|rows| {
-                        rows.iter()
-                            .map(|row| row.message_id.clone())
-                            .collect::<Vec<_>>()
+    view()
+        .flex_1()
+        .min_h_0()
+        .on_layout(move |bounds: &Bounds<Points>| {
+            media_viewport(bounds);
+            reveal.measure(bounds.size.height.0);
+        })
+        .child(
+            reveal.surface(view().flex_1().min_h_0()).child(
+                virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
+                    .header(view().h(move || px(bottom.get())))
+                    .footer(view().h(move || px(top.get())))
+                    .keys(move || {
+                        messages.with(|rows| {
+                            rows.iter()
+                                .map(|row| row.message_id.clone())
+                                .collect::<Vec<_>>()
+                        })
                     })
-                })
-                .element_ref(&history)
-                .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
-                .inverted()
-                .estimated_item_size(ui::list_row_height())
-                .flex_1()
-                .min_h_0(),
-        ),
-    )
+                    .element_ref(&history)
+                    .on_viewable_items_change(move |event: &ViewableItems| {
+                        viewable.set(event.viewable)
+                    })
+                    .inverted()
+                    .estimated_item_size(ui::list_row_height())
+                    .flex_1()
+                    .min_h_0(),
+            ),
+        )
 }
 
 fn day_separator(day: Memo<Option<String>>) -> impl IntoElement {

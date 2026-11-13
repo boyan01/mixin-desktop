@@ -19,8 +19,9 @@ const CHANGE_DELAY: Duration = Duration::from_millis(300);
 
 pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
     let i18n = i18n::current();
-    ui::round_button()
-        .size_8()
+    ui::glass(ui::round_button())
+        .size(ui::glass_bar_height())
+        .rounded(ui::glass_radius())
         .accessibility_label(move || Some(i18n.text(Key::Back).into()))
         .on_press(on_press)
         .child(ui::icon(ui::Icon::ArrowLeft))
@@ -29,8 +30,9 @@ pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
 /// Closes the panel the page sits in. It stands at the trailing edge, where Back never does.
 pub(crate) fn close_button(on_press: impl Fn() + 'static) -> ButtonElement {
     let i18n = i18n::current();
-    ui::round_button()
-        .size_8()
+    ui::glass(ui::round_button())
+        .size(ui::glass_bar_height())
+        .rounded(ui::glass_radius())
         .accessibility_label(move || Some(i18n.tr("Close", "关闭").into()))
         .on_press(on_press)
         .child(ui::icon(ui::Icon::Close))
@@ -38,7 +40,7 @@ pub(crate) fn close_button(on_press: impl Fn() + 'static) -> ButtonElement {
 
 /// A fixed slot of a page bar, so the title stays centered whatever it holds.
 fn bar_slot(button: Option<ButtonElement>) -> View {
-    let slot = view().size_8().flex_shrink_0();
+    let slot = view().size(ui::glass_bar_height()).flex_shrink_0();
     match button {
         Some(button) => slot.child(button),
         None => slot,
@@ -85,12 +87,78 @@ pub(crate) fn page_header(
 
 /// The column of a page: one width of cards and sections, centered in a wide pane.
 pub(crate) fn page_body() -> View {
+    let insets = use_context::<ScrollInsets>();
+    let inset = move |edge: fn(ScrollInsets) -> Signal<f32>| {
+        move || px(ui::space_md().0 + insets.map_or(0.0, |insets| edge(insets).get()))
+    };
     view()
         .w_full()
         .max_w(ui::content_max_width())
         .self_center()
         .p(ui::space_md())
+        .pt(inset(|insets| insets.top))
+        .pb(inset(|insets| insets.bottom))
         .gap(ui::space_md())
+}
+
+/// The room a [`floating_page`]'s header takes at the top, for a page that lays
+/// out its own body instead of a [`page_body`]: none outside such a page.
+pub(crate) fn top_inset() -> impl Fn() -> Points + Copy + 'static {
+    let insets = use_context::<ScrollInsets>();
+    move || px(insets.map_or(0.0, |insets| insets.top.get()))
+}
+
+/// The scroll padding a [`floating_page`] gives the page bodies inside it.
+#[derive(Clone, Copy)]
+pub(crate) struct ScrollInsets {
+    top: Signal<f32>,
+    bottom: Signal<f32>,
+}
+
+/// A page whose header floats over its scrolling body: the body scrolls under
+/// the header, past a scroll padding of its height, and both ends fade on
+/// `color` (`ui::edge_fade`), the background the caller draws. Call before building `body`'s page bodies, or
+/// build them in a deferred region, so they see the padding.
+pub(crate) fn floating_page(
+    color: impl Fn() -> AdaptiveColor + Copy + 'static,
+    header: impl IntoElement,
+    body: impl IntoElement,
+) -> View {
+    let insets = ScrollInsets {
+        top: signal(0.0),
+        bottom: signal(0.0),
+    };
+    provide_context(insets);
+    view()
+        .flex_1()
+        .min_h_0()
+        .relative()
+        .child(view().flex_1().min_h_0().child(body))
+        .child(
+            view()
+                .absolute()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .pointer_events(PointerEvents::BoxNone)
+                .child(ui::edge_fade(false, color)),
+        )
+        .child(
+            view()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .pointer_events(PointerEvents::BoxNone)
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    let height = bounds.size.height.0;
+                    if insets.top.get_untracked() != height {
+                        insets.top.set(height);
+                    }
+                })
+                .child(ui::edge_fade(true, color))
+                .child(header),
+        )
 }
 
 /// Supporting text beside a card, lined up with the rows' labels.
@@ -99,6 +167,67 @@ pub(crate) fn note(message: impl Fn() -> &'static str + 'static) -> Text {
         .px(ui::space_lg())
         .text_role(ui::TextRole::Body)
         .text_color(ui::fg_secondary)
+}
+
+/// A page of `group`s, such as chat info and its pages: the iOS grouped style.
+pub(crate) fn grouped_page() -> View {
+    // Sections reach the panel's edges, as the conversation list's rows do.
+    page_body().px(Points::ZERO).gap(ui::space_md())
+}
+
+/// A section of a grouped page. Its rows are drawn as the conversation list's
+/// are: inset from the panel's edges, rounded, apart only by their hover and
+/// selected fills; space parts one section from the next. Give every row of one
+/// group a leading icon, or none.
+pub(crate) fn group() -> View {
+    view().px(ui::space_sm())
+}
+
+/// A pressable row of a `group`. Add a trailing value, `ui::chevron` when it
+/// leads to a page, or `.text_color(ui::danger)` for a destructive command.
+pub(crate) fn group_row(
+    leading: Option<ui::Icon>,
+    label: impl Fn() -> &'static str + 'static,
+) -> ButtonElement {
+    let row = ui::nav_row()
+        .min_h(ui::group_row_height())
+        .px(ui::space_md())
+        .gap(ui::space_md());
+    match leading {
+        Some(leading) => row.child(ui::icon(leading).text_color(ui::fg_secondary)),
+        None => row,
+    }
+    .child(
+        text(label)
+            .text_role(ui::TextRole::Label)
+            .flex_1()
+            .min_w_0()
+            .number_of_lines(1),
+    )
+}
+
+/// A `group_row` that does not act: a label with its value after it.
+pub(crate) fn group_static_row(
+    leading: Option<ui::Icon>,
+    label: impl Fn() -> &'static str + 'static,
+) -> View {
+    let row = view()
+        .min_h(ui::group_row_height())
+        .px(ui::space_md())
+        .flex_row()
+        .items_center()
+        .gap(ui::space_md());
+    match leading {
+        Some(leading) => row.child(ui::icon(leading).text_color(ui::fg_secondary)),
+        None => row,
+    }
+    .child(
+        text(label)
+            .text_role(ui::TextRole::Label)
+            .flex_1()
+            .min_w_0()
+            .number_of_lines(1),
+    )
 }
 
 /// A form field and its visible label.

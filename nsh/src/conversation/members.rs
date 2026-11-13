@@ -58,8 +58,9 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                                 .align(Align::End)
                                 .margin(ui::space_lg())
                                 .trigger(
-                                    ui::round_button()
-                                        .size_8()
+                                    ui::glass(ui::round_button())
+                                        .size(ui::glass_bar_height())
+                                        .rounded(ui::glass_radius())
                                         .disabled(state.busy)
                                         .accessibility_label(move || {
                                             Some(tr("Participant actions", "群成员操作").into())

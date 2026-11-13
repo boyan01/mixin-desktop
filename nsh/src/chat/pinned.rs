@@ -227,14 +227,20 @@ impl Pinned {
         view()
             .min_w_0()
             .flex_shrink(1.0)
-            .max_w(ui::glass_pin_max_width())
+            // As long as the row allows: the chrome keeps its gaps around it.
+            .flex_1()
             .gap_2()
             .style_when(move || !self.visible(), |style| style.hidden())
             .child(when(
                 move || presence.mounted(),
                 move || {
                     presence.surface(
-                        ui::glass_pill()
+                        // Two lines grow past the chrome's height: the same shape, taller.
+                        ui::glass(view())
+                            .min_h(ui::glass_bar_height())
+                            .flex_row()
+                            .items_center()
+                            .rounded(ui::glass_radius())
                             .flex_shrink(1.0)
                             .min_w_0()
                             .px_1()
@@ -278,7 +284,7 @@ impl Pinned {
                                     .min_h_0()
                                     .px_1()
                                     .py_1()
-                                    .rounded(ui::radius_full())
+                                    .rounded(ui::glass_radius())
                                     .justify_start()
                                     .accessibility_label(move || {
                                         Some(i18n.text(Key::Pinned).into())

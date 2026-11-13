@@ -189,8 +189,12 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             input.focus();
         }
     });
-    on_key("escape", move |_| {
-        if !input.composing() && quote.with_untracked(Option::is_some) {
+    // Escape in the input cancels a reply. The editor keeps Escape and closes
+    // an open mention picker with it first; the reply waits for the next one.
+    let escapes = stored(input.escapes.get_untracked());
+    effect(move || {
+        let count = input.escapes.get();
+        if escapes.replace(count) != count && quote.with_untracked(Option::is_some) {
             quote.set(None);
         }
     });
@@ -285,6 +289,47 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             apply(value, caret);
         }));
     });
+    // Typing into the open chat while nothing takes text starts the message:
+    // the key goes to the input, as in Telegram and the mobile apps. Only
+    // letters and digits, with Shift for capitals; other keys keep their jobs.
+    let typed = insert.clone();
+    let navigation =
+        use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
+    let type_to_input = Rc::new(move |text: String| {
+        let (_, covered, _) = focus_layout.get_untracked();
+        if can_send.get_untracked()
+            && !covered
+            && !navigation.settings.get_untracked()
+            && actions.preview.with_untracked(Option::is_none)
+            && actions.forwarding.with_untracked(Vec::is_empty)
+            && actions.selected.with_untracked(Vec::is_empty)
+        {
+            input.focus();
+            typed(text);
+        }
+    });
+    for key in ('a'..='z').chain('0'..='9') {
+        for shift in [false, true] {
+            if shift && key.is_ascii_digit() {
+                continue;
+            }
+            let text = if shift { key.to_ascii_uppercase() } else { key }.to_string();
+            let keystroke = if shift {
+                format!("shift+{key}")
+            } else {
+                key.to_string()
+            };
+            let type_to_input = type_to_input.clone();
+            on_key_with(
+                &keystroke,
+                KeyOptions {
+                    when: nsh_core::keymap::When::NotEditing,
+                    ..KeyOptions::default()
+                },
+                move |_| type_to_input(text.clone()),
+            );
+        }
+    }
     let mention_account = stored(account.clone());
     let editor = view()
         .px_4()

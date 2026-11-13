@@ -34,85 +34,34 @@ pub(super) fn screen(state: State) -> impl IntoElement {
     let avatar = crate::avatar::Picker::new();
     let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
     scroll().flex_1().min_h_0().child(
-        parts::page_body()
-            .p_3()
-            .gap_3()
+        parts::grouped_page()
             .child(identity(state))
-            .child(when(
-                move || state.group() && !exited_group(state),
-                move || {
-                    ui::card().child(page_row(
-                        move || tr("Group participants", "群组成员"),
-                        move || state.page.set(Page::Members),
-                    ))
-                },
-            ))
-            .child(when(
-                move || !state.group(),
-                move || {
-                    ui::card().child(row(
-                        move || tr("Share contact…", "分享联系人…"),
-                        move || links.open(user::contact_uri(&state.owner_id()), None),
-                    ))
-                },
-            ))
-            .child(chat_rows(state))
+            .child(description(state))
+            .child(quick_actions(state))
             .child(when(
                 move || !exited_group(state),
-                move || ui::card().child(expiry_row(state)),
+                move || about_rows(state, links),
             ))
-            .child(when(
-                move || state.group() && state.can_manage(),
-                move || group_rows(state, avatar),
-            ))
-            .child(when(
-                move || !exited_group(state),
-                move || {
-                    ui::card().child(mute_row(state)).child(when(
-                        move || {
-                            state.group() && state.can_manage()
-                                || !state.group() && state.owner_id() != state.own_id()
-                        },
-                        move || {
-                            row(
-                                move || tr("Edit name…", "编辑名称…"),
-                                move || state.page.set(Page::Edit),
-                            )
-                        },
+            .child(
+                parts::group()
+                    .child(when(
+                        move || !exited_group(state),
+                        move || expiry_row(state),
                     ))
-                },
-            ))
+                    .child(
+                        icon_row(
+                            ui::Icon::Circle,
+                            move || tr("Circles", "圈子"),
+                            move || state.page.set(Page::Circles),
+                        )
+                        .child(ui::chevron()),
+                    ),
+            )
             .child(when(
-                move || !state.group(),
-                move || {
-                    ui::card().child(page_row(
-                        move || tr("Groups in common", "共同群组"),
-                        move || state.page.set(Page::Groups),
-                    ))
-                },
+                move || state.can_manage() || !state.group() && state.owner_id() != state.own_id(),
+                move || edit_rows(state, avatar),
             ))
-            .child(when(
-                move || state.creator.with(Option::is_some),
-                move || {
-                    ui::card().child(row(
-                        move || tr("Created by", "开发者"),
-                        move || {
-                            if let Some(id) = state.creator.get_untracked() {
-                                links.open(format!("mixin://users/{id}"), None);
-                            }
-                        },
-                    ))
-                },
-            ))
-            .child(ui::card().child(page_row(
-                move || tr("Circles", "圈子"),
-                move || state.page.set(Page::Circles),
-            )))
-            .child(history_rows(state))
-            .child(when(
-                move || !state.group() && state.owner_id() != state.own_id(),
-                move || user::sidebar_report(state),
-            ))
+            .child(danger_rows(state))
             .child(when(
                 move || state.group(),
                 move || {
@@ -137,7 +86,6 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                     .text_role(ui::TextRole::Caption)
                     .text_center()
                     .text_color(ui::fg_secondary)
-                    .py_2()
                 },
             ))
             .child(avatar.dialog(true, move |data| {
@@ -159,7 +107,112 @@ pub(super) fn screen(state: State) -> impl IntoElement {
     )
 }
 
+/// What the chat is: picture, name and one secondary line, as iOS and Telegram
+/// head an info page.
 fn identity(state: State) -> impl IntoElement {
+    view()
+        .items_center()
+        .px(ui::space_lg())
+        .pb(ui::space_lg())
+        .gap(ui::space_xs())
+        .child(ui::conversation_avatar(
+            move || state.row.get(),
+            ui::AvatarSize::Profile,
+        ))
+        .child(
+            view()
+                .flex_row()
+                .items_center()
+                .justify_center()
+                .gap(ui::space_xs())
+                .min_w_0()
+                .mt(ui::space_xs())
+                .child(
+                    text(move || row_text(state, |row| row.name.clone()))
+                        .text_role(ui::TextRole::Headline)
+                        .text_center()
+                        .min_w_0()
+                        .number_of_lines(2),
+                )
+                .child(user::identity_badge(state.profile)),
+        )
+        .child(
+            text(move || {
+                row_text(state, |row| {
+                    if row.category == "GROUP" {
+                        i18n::current().members(row.participant_count)
+                    } else {
+                        row.identity_number.clone()
+                    }
+                })
+            })
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary)
+            .select_text(),
+        )
+        .child(when(
+            move || !state.group(),
+            move || user::sidebar_add(state),
+        ))
+}
+
+/// The commands people reach for most, each an icon over a short label.
+/// The chat's own commands: one group of rows, as iOS and Telegram list them.
+fn quick_actions(state: State) -> impl IntoElement {
+    let navigation = use_context::<crate::navigation::ChatNavigation>()
+        .expect("The signed-in session provides navigation");
+    parts::group()
+        .child(icon_row(
+            ui::Icon::Search,
+            move || tr("Search messages", "搜索聊天记录"),
+            move || navigation.open_search_from_info(),
+        ))
+        .child(
+            icon_row(
+                ui::Icon::Image,
+                move || tr("Shared media", "共享媒体"),
+                move || state.page.set(Page::Shared),
+            )
+            .child(ui::chevron()),
+        )
+        .child(dynamic(move || {
+            let muted = muted(state);
+            untracked(|| {
+                icon_row(
+                    if muted {
+                        ui::Icon::VolumeOff
+                    } else {
+                        ui::Icon::Bell
+                    },
+                    move || {
+                        if muted {
+                            tr("Unmute", "取消静音")
+                        } else {
+                            tr("Mute", "静音")
+                        }
+                    },
+                    move || {
+                        if muted {
+                            set_mute(state, 0);
+                        } else {
+                            choose_mute(state);
+                        }
+                    },
+                )
+                // An exited group keeps the command in place, dimmed.
+                .disabled(move || state.busy.get() || exited_group(state))
+                .child(
+                    text(move || mute_until(state))
+                        .number_of_lines(1)
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::fg_secondary),
+                )
+            })
+        }))
+}
+
+/// The group description or the person's biography, clamped until expanded.
+fn description(state: State) -> impl IntoElement {
     let description = move || {
         if state.group() {
             state.detail.with(|detail| {
@@ -189,123 +242,145 @@ fn identity(state: State) -> impl IntoElement {
             .collect::<String>()
     });
     let truncated = move || preview.get().len() < description().trim_end().len();
-    view()
-        .px_4()
-        .pt_2()
-        .pb_5()
-        .gap_2()
-        .items_center()
-        .child(ui::conversation_avatar(
-            move || state.row.get(),
-            ui::AvatarSize::Profile,
+    when(
+        move || !description().is_empty(),
+        move || {
+            parts::group()
+                .px(ui::space_lg())
+                .py(ui::space_md())
+                .gap(ui::space_xs())
+                .child(
+                    text(move || {
+                        if expanded.get() {
+                            description()
+                        } else if truncated() {
+                            format!("{}…", preview.get())
+                        } else {
+                            description()
+                        }
+                    })
+                    .text_role(ui::TextRole::Body)
+                    .select_text(),
+                )
+                .child(when(truncated, move || {
+                    ui::link(
+                        move || {
+                            if expanded.get() {
+                                tr("Show less", "收起")
+                            } else {
+                                tr("Show more", "展开")
+                            }
+                        },
+                        move || expanded.set(!expanded.get()),
+                    )
+                    .self_start()
+                }))
+        },
+    )
+}
+
+/// The people and things around the chat. Every row leads with an icon.
+fn about_rows(state: State, links: crate::links::LinkNavigation) -> impl IntoElement {
+    parts::group()
+        .child(when(
+            move || state.group(),
+            move || {
+                icon_row(
+                    ui::Icon::Groups,
+                    move || tr("Group participants", "群组成员"),
+                    move || state.page.set(Page::Members),
+                )
+                .child(ui::chevron())
+            },
         ))
-        .child(
-            text(move || row_text(state, |row| row.name.clone()))
-                .text_role(ui::TextRole::Headline)
-                .text_center(),
-        )
-        .child(
-            text(move || {
-                row_text(state, |row| {
-                    if row.category == "GROUP" {
-                        i18n::current().members(row.participant_count)
-                    } else {
-                        row.identity_number.clone()
-                    }
-                })
-            })
-            .text_role(ui::TextRole::Caption)
-            .text_color(ui::fg_secondary),
-        )
         .child(when(
             move || !state.group(),
-            move || user::sidebar_add(state),
-        ))
-        .child(
-            text(move || {
-                if expanded.get() {
-                    description()
-                } else if truncated() {
-                    format!("{}…", preview.get())
-                } else {
-                    description()
-                }
-            })
-            .text_role(ui::TextRole::Body)
-            .text_center()
-            .select_text()
-            .style_when(move || description().is_empty(), |style| style.hidden()),
-        )
-        .child(when(truncated, move || {
-            ui::link(
-                move || {
-                    if expanded.get() {
-                        tr("Show less", "收起")
-                    } else {
-                        tr("Show more", "展开")
-                    }
-                },
-                move || expanded.set(!expanded.get()),
-            )
-            .self_center()
-        }))
-}
-
-fn group_rows(state: State, avatar: crate::avatar::Picker) -> impl IntoElement {
-    ui::card()
-        .child(
-            row(
-                move || tr("Change group photo…", "更换群头像…"),
-                move || {
-                    if state.busy.get_untracked() || !state.can_manage() {
-                        return;
-                    }
-                    spawn(async move {
-                        state.failed.set(false);
-                        if avatar.pick().await.is_err() {
-                            state.failed.set(true);
-                        }
-                    });
-                },
-            )
-            .disabled(move || state.busy.get() || avatar.busy()),
-        )
-        .child(row(
             move || {
-                if state.detail.with(|detail| {
-                    detail
-                        .as_ref()
-                        .is_none_or(|detail| detail.announcement.is_empty())
-                }) {
-                    tr("Add group description…", "添加群公告…")
-                } else {
-                    tr("Edit group description…", "编辑群公告…")
-                }
+                view()
+                    .child(icon_row(
+                        ui::Icon::Share,
+                        move || tr("Share contact…", "分享联系人…"),
+                        move || links.open(user::contact_uri(&state.owner_id()), None),
+                    ))
+                    .child(
+                        icon_row(
+                            ui::Icon::Groups,
+                            move || tr("Groups in common", "共同群组"),
+                            move || state.page.set(Page::Groups),
+                        )
+                        .child(ui::chevron()),
+                    )
             },
-            move || state.page.set(Page::Description),
-        ))
-}
-
-fn chat_rows(state: State) -> impl IntoElement {
-    let navigation = use_context::<crate::navigation::ChatNavigation>()
-        .expect("The signed-in session provides navigation");
-    ui::card()
-        .child(page_row(
-            move || tr("Shared media", "共享媒体"),
-            move || state.page.set(Page::Shared),
         ))
         .child(when(
             move || state.shared_apps_preview.with(|apps| !apps.is_empty()),
             move || shared_apps_row(state),
         ))
-        .child(page_row(
-            move || tr("Search messages", "搜索消息"),
-            move || navigation.open_search_from_info(),
+        .child(when(
+            move || state.creator.with(Option::is_some),
+            move || {
+                icon_row(
+                    ui::Icon::Person,
+                    move || tr("Created by", "开发者"),
+                    move || {
+                        if let Some(id) = state.creator.get_untracked() {
+                            links.open(format!("mixin://users/{id}"), None);
+                        }
+                    },
+                )
+            },
+        ))
+}
+
+/// Renames and the group's own picture and description. No row has an icon.
+fn edit_rows(state: State, avatar: crate::avatar::Picker) -> impl IntoElement {
+    parts::group()
+        .child(row(
+            move || tr("Edit name…", "编辑名称…"),
+            move || state.page.set(Page::Edit),
+        ))
+        .child(when(
+            move || state.group() && state.can_manage(),
+            move || {
+                view()
+                    .child(
+                        row(
+                            move || tr("Change group photo…", "更换群头像…"),
+                            move || {
+                                if state.busy.get_untracked() || !state.can_manage() {
+                                    return;
+                                }
+                                spawn(async move {
+                                    state.failed.set(false);
+                                    if avatar.pick().await.is_err() {
+                                        state.failed.set(true);
+                                    }
+                                });
+                            },
+                        )
+                        .disabled(move || state.busy.get() || avatar.busy()),
+                    )
+                    .child(row(
+                        move || {
+                            if state.detail.with(|detail| {
+                                detail
+                                    .as_ref()
+                                    .is_none_or(|detail| detail.announcement.is_empty())
+                            }) {
+                                tr("Add group description…", "添加群公告…")
+                            } else {
+                                tr("Edit group description…", "编辑群公告…")
+                            }
+                        },
+                        move || state.page.set(Page::Description),
+                    ))
+            },
         ))
 }
 
 fn shared_apps_row(state: State) -> impl IntoElement {
-    row(
+    icon_row(
+        ui::Icon::Bot,
         move || tr("Shared apps", "共享应用"),
         move || state.page.set(Page::Apps),
     )
@@ -330,7 +405,7 @@ fn shared_apps_row(state: State) -> impl IntoElement {
                 .left(px(index as f32 * APP_ICON / 2.0))
                 .size_7()
                 .border_2()
-                .border_color(ui::surface_pane)
+                .border_color(ui::surface_list)
             }))
     }))
     .child(ui::chevron())
@@ -356,61 +431,47 @@ fn expiry_row(state: State) -> impl IntoElement {
         let readonly = state.group() && !state.can_manage();
         untracked(|| {
             if readonly {
-                ui::static_row(label).child(value()).into_element()
-            } else {
-                row(label, move || state.page.set(Page::Expiry))
-                    .disabled(state.busy)
+                parts::group_static_row(Some(ui::Icon::Disappearing), label)
                     .child(value())
-                    .child(ui::chevron())
                     .into_element()
+            } else {
+                icon_row(ui::Icon::Disappearing, label, move || {
+                    state.page.set(Page::Expiry)
+                })
+                .disabled(state.busy)
+                .child(value())
+                .child(ui::chevron())
+                .into_element()
             }
         })
     })
 }
 
-fn mute_row(state: State) -> impl IntoElement {
-    row(
-        move || {
-            if muted(state) {
-                tr("Unmute", "取消静音")
-            } else {
-                tr("Mute…", "静音…")
-            }
-        },
-        move || {
-            if state
-                .row
-                .with_untracked(|row| row.as_ref().is_some_and(|row| row.is_muted))
-            {
-                set_mute(state, 0);
-            } else {
-                choose_mute(state);
-            }
-        },
-    )
-    .disabled(state.busy)
-    .child(when(
-        move || muted(state),
-        move || {
-            text(move || {
-                let millis = state
-                    .detail
-                    .with(|detail| detail.as_ref().map_or(0, |detail| detail.mute_until_millis));
-                chrono::DateTime::from_timestamp_millis(millis)
-                    .filter(|_| millis > 0)
-                    .map(|date| {
-                        format!(
-                            "{}, {}",
-                            crate::presentation::date(i18n::current(), millis),
-                            date.with_timezone(&chrono::Local).format("%H:%M")
-                        )
-                    })
-                    .unwrap_or_default()
-            })
-            .text_role(ui::TextRole::Body)
-            .text_color(ui::fg_secondary)
-        },
-    ))
+/// When a muted chat speaks again, or nothing when it is not muted.
+fn mute_until(state: State) -> String {
+    if !muted(state) {
+        return String::new();
+    }
+    let millis = state
+        .detail
+        .with(|detail| detail.as_ref().map_or(0, |detail| detail.mute_until_millis));
+    chrono::DateTime::from_timestamp_millis(millis)
+        .filter(|_| millis > 0)
+        .map(|date| {
+            i18n::current().format(
+                "Muted until {arg0}",
+                "静音至 {arg0}",
+                &[(
+                    "arg0",
+                    &format!(
+                        "{}, {}",
+                        crate::presentation::date(i18n::current(), millis),
+                        date.with_timezone(&chrono::Local).format("%H:%M")
+                    ),
+                )],
+            )
+        })
+        .unwrap_or_default()
 }
 
 fn set_mute(state: State, duration: i64) {
@@ -458,12 +519,11 @@ fn choose_mute(state: State) {
     });
 }
 
-fn history_rows(state: State) -> impl IntoElement {
-    ui::card()
-        .child(when(
-            move || !state.group() && state.owner_id() != state.own_id(),
-            move || user::sidebar_relationship(state),
-        ))
+/// Destructive commands, last and apart from the rest, in the danger color.
+fn danger_rows(state: State) -> impl IntoElement {
+    let other = move || !state.group() && state.owner_id() != state.own_id();
+    parts::group()
+        .child(when(other, move || user::sidebar_relationship(state)))
         .child(
             row(
                 move || tr("Clear chat…", "清空聊天记录…"),
@@ -503,6 +563,7 @@ fn history_rows(state: State) -> impl IntoElement {
                 .text_color(ui::danger)
             },
         ))
+        .child(when(other, move || user::sidebar_report(state)))
 }
 
 fn leave_group(state: State) {
@@ -769,7 +830,7 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                 }),
         );
     scroll().flex_1().min_h_0().child(
-        parts::page_body()
+        parts::grouped_page()
             .child(parts::note(move || {
                 tr(
                     "New messages disappear after the selected time.",
@@ -777,7 +838,7 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                 )
             }))
             .child(
-                ui::card().children(
+                parts::group().children(
                     [
                         (0, "Off", "关闭"),
                         (30, "30 seconds", "30 秒"),
@@ -788,7 +849,7 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                     ]
                     .into_iter()
                     .map(move |(seconds, en, zh)| {
-                        ui::settings_row(None, move || tr(en, zh))
+                        parts::group_row(None, move || tr(en, zh))
                             .selected(move || value() == seconds)
                             .disabled(disabled)
                             .on_press(move || apply(seconds))
@@ -800,10 +861,12 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                 ),
             )
             .child(
-                ui::section(move || tr("Custom time", "自定义时间")).child(
-                    ui::card()
+                // Its own section: the band, then its title and fields inside.
+                parts::group().child(
+                    view()
                         .p(ui::space_lg())
                         .gap(ui::space_md())
+                        .child(ui::section_label(move || tr("Custom time", "自定义时间")))
                         .child(
                             view()
                                 .flex_row()

@@ -33,7 +33,7 @@ as bindings (`.bg(ui::surface_card)`). Tailwind steps with the same value
 | Radius | `radius_app_icon` `radius_thumb` `radius_chip` | 4 bot icon, 6 thumbnail, 10 timeline chip |
 | Icon | `icon_xs` `sm` `md` `lg` | 14 16 20 24 |
 | Avatar | `AvatarSize::Small` `Compact` `Bar` `Medium` `Large` `Hero` | 24 32 36 40 50 120 |
-| Height | `row_height` `nav_row_height` `list_row_height` | 52 40 80 |
+| Height | `row_height` `nav_row_height` `list_row_height` `group_row_height` | 52 40 80 44 |
 | Height | `title_bar_requested_height` `button_height` `button_height_small` `field_height` | 52 36 32 40 |
 | Layout | `sidebar_width` `navigation_width` `navigation_compact_width` `card_width` | 300 176 64 260 |
 | Layout | `content_max_width` `dialog_height_tall` | 600 640 |
@@ -323,15 +323,33 @@ with a quiet retry command.
 
 ## Chat information sidebar
 
-The root is an identity panel, following Flutter's `ChatInfoPage`: the header
-contains Close, while the avatar, name and identity/count establish the object.
+The sidebar is a navigation panel, as in Telegram's: the conversation list's
+solid surface (`surface_list`), no wallpaper and no cards. Rows are drawn as
+the conversation list's are: inset 8pt from the panel's edges, rounded, with no
+hairlines, apart only by their hover and selected fills. Space parts one section
+(`parts::group`) from the next. Each page header floats over its body
+(`parts::floating_page`) with glass Back or Close buttons; the body scrolls
+under it past a scroll padding, and both ends fade (`ui::edge_fade`).
+
+Rows are 44pt (`parts::group_row`), with a 12pt inner inset and a 12pt gap
+between slots. All rows of
+one card lead with an icon, or none do. A row that opens a page ends in a chevron.
+Destructive commands are in the last card, in the danger color. Every page under
+the root has Back at the leading edge of its header and a centered title; only the
+root has Close.
+
+The root starts with the identity, on the panel itself: a 90pt avatar, name with its badge and
+identity/count. The description or biography is a card of its own. Search, Shared
+media and Mute follow as a card of rows; an exited group keeps Mute in place,
+dimmed.
 There is no separate Profile row. Contact sharing, groups in common, relationship
 commands and reporting are available directly in personal chats. Stranger,
 blocked, friend and bot states determine the available commands; existing user
 dialogs and message-avatar profile entry points retain their own navigation.
 
-Group participants, media/search, disappearing messages, group management,
-mute/name, circles and destructive commands form separate row groups. Group
+Participants, contact sharing, groups in common, shared apps and the bot's
+creator form one card; disappearing messages and circles a second; name, group
+photo and description editors a third; destructive commands the last. Group
 photo selection opens the existing crop dialog directly. Names and descriptions
 have separate editors and independent drafts; saving one does not discard the
 other. The participants header exposes Add participants and Group invite link
@@ -344,5 +362,5 @@ exited groups expose neither management nor active-chat settings.
 
 Descriptions preview three source lines and at most 60 graphemes, with an
 explicit expand/collapse command when shortened. The body owns vertical scrolling;
-the 300pt inspector width, popup background and shared row controls apply to both
-group and personal previews.
+the 300pt inspector width and shared row controls apply to both group and personal
+previews.

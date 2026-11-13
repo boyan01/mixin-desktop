@@ -217,7 +217,16 @@ fn row(
     title: impl Fn() -> &'static str + 'static,
     action: impl Fn() + 'static,
 ) -> nsh_base::ButtonElement {
-    ui::settings_row(None, title).on_press(action)
+    parts::group_row(None, title).on_press(action)
+}
+
+/// A `row` of a group whose rows all lead with an icon.
+fn icon_row(
+    icon: ui::Icon,
+    title: impl Fn() -> &'static str + 'static,
+    action: impl Fn() + 'static,
+) -> nsh_base::ButtonElement {
+    parts::group_row(Some(icon), title).on_press(action)
 }
 
 /// A card row that opens another page.
@@ -322,15 +331,26 @@ pub(crate) fn screen(
             }
         }
     });
+    let slide = crate::motion::PageSlide::new();
+    let shown = stored(state.page.get_untracked());
+    effect(move || {
+        let page = state.page.get();
+        if shown.replace(page) != page {
+            // Info is the root: every other page goes forward from it.
+            untracked(|| slide.enter(page != Page::Info));
+        }
+    });
     frame(
         state,
         when(
             move || state.row.with(Option::is_some),
             move || {
-                dynamic(move || {
-                    let page = state.page.get();
-                    untracked(|| page_body(state, page, target))
-                })
+                slide
+                    .surface(view().flex_1().min_h_0())
+                    .child(dynamic(move || {
+                        let page = state.page.get();
+                        untracked(|| page_body(state, page, target))
+                    }))
             },
         ),
     )
@@ -478,54 +498,56 @@ pub(crate) fn preview_page(
 #[cfg(debug_assertions)]
 pub(crate) use user::preview_name;
 
+/// The sidebar is a navigation panel, drawn as the conversation list is: its
+/// solid surface, full-width sections and glass controls floating over the top.
 fn frame(state: State, content: impl IntoElement) -> View {
-    view()
-        .flex_1()
-        .min_h_0()
-        .bg(ui::surface_popover)
-        .child(
-            parts::page_header(
-                move || {
-                    if state.page.get() == Page::Info {
-                        ""
-                    } else {
-                        state.page.get().title()
-                    }
-                },
-                Some(
-                    parts::back_button(move || state.page.set(Page::Info)).style_when(
-                        move || state.page.get() == Page::Info,
-                        |style| style.hidden(),
+    let page = parts::floating_page(
+        ui::surface_list,
+        view()
+            .pointer_events(PointerEvents::BoxNone)
+            .child(
+                parts::page_header(
+                    move || {
+                        if state.page.get() == Page::Info {
+                            ""
+                        } else {
+                            state.page.get().title()
+                        }
+                    },
+                    Some(
+                        parts::back_button(move || state.page.set(Page::Info)).style_when(
+                            move || state.page.get() == Page::Info,
+                            |style| style.hidden(),
+                        ),
                     ),
-                ),
-                Some(parts::close_button(move || state.close()).style_when(
-                    move || state.page.get() != Page::Info,
+                    Some(parts::close_button(move || state.close()).style_when(
+                        move || state.page.get() != Page::Info,
+                        |style| style.hidden(),
+                    )),
+                )
+                // Floating: the edge fade parts it from what scrolls under it.
+                .border_color(|| ui::surface_list().opacity(0.0))
+                .style_when(
+                    move || state.page.get().profile_flow() || state.page.get() == Page::Members,
                     |style| style.hidden(),
-                )),
+                ),
             )
-            .style_when(
-                move || state.page.get() == Page::Info,
-                |style| style.border_color(ui::surface_popover),
-            )
-            .style_when(
-                move || state.page.get().profile_flow() || state.page.get() == Page::Members,
-                |style| style.hidden(),
-            ),
-        )
-        .child(when(
-            move || state.loading.get() && state.row.with(Option::is_none),
-            || {
-                parts::status(move || tr("Loading…", "加载中…"))
+            .child(when(
+                move || state.loading.get() && state.row.with(Option::is_none),
+                || {
+                    parts::status(move || tr("Loading…", "加载中…"))
+                        .px(ui::space_lg())
+                        .py(ui::space_sm())
+                },
+            ))
+            .child(when(state.failed, move || {
+                user::update_error(move || state.refresh_from_server())
                     .px(ui::space_lg())
                     .py(ui::space_sm())
-            },
-        ))
-        .child(when(state.failed, move || {
-            user::update_error(move || state.refresh_from_server())
-                .px(ui::space_lg())
-                .py(ui::space_sm())
-        }))
-        .child(content)
+            })),
+        content,
+    );
+    view().flex_1().min_h_0().bg(ui::surface_list).child(page)
 }
 
 #[cfg(debug_assertions)]

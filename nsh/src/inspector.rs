@@ -23,7 +23,7 @@ pub(crate) fn screen(
         .flex_shrink_0()
         .min_h_0()
         .style_with(move |s| if compact() { s.flex_1().min_w_0() } else { s })
-        .bg(ui::surface_popover)
+        .bg(ui::surface_list)
         .border_l_1()
         .border_color(ui::border);
     if destination == Panel::Info {

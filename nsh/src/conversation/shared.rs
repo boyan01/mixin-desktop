@@ -342,6 +342,7 @@ fn screen_view(
 ) -> View {
     let i18n = i18n::current();
     view()
+        .pt(parts::top_inset())
         .flex_1()
         .min_w_0()
         .min_h_0()

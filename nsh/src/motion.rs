@@ -9,6 +9,11 @@ use nsh_core::{
 
 pub(crate) const FEEDBACK_MS: f32 = 120.0;
 
+/// The reply bar over the composer: M3's medium1 (250 ms) in, short4 (200 ms)
+/// out, an exit shorter than its entry.
+pub(crate) const REPLY_ENTER_MS: f32 = 250.0;
+pub(crate) const REPLY_EXIT_MS: f32 = 200.0;
+
 /// The input grows upward while its tools keep their bottom alignment.
 pub(crate) const COMPOSER_RESIZE: nsh_core::LayoutTransition =
     nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, 160.0);
@@ -51,8 +56,9 @@ const ENTER_SCALE: f32 = 0.9;
 
 /// Older or newer rows that replace the ones in view rise or sink into place.
 pub(crate) const TIMELINE_REVEAL_MS: f32 = 220.0;
-/// How long a message reached by a jump keeps its highlight while it fades.
-pub(crate) const JUMP_HIGHLIGHT_MS: f32 = 1200.0;
+/// A message reached by a jump keeps its highlight, then fades it (Flutter's blink).
+pub(crate) const JUMP_HIGHLIGHT_HOLD_MS: f32 = 500.0;
+pub(crate) const JUMP_HIGHLIGHT_FADE_MS: f32 = 200.0;
 /// The rail's labels: they leave faster than they come back.
 pub(crate) const RAIL_LABELS_EXIT_MS: f32 = 90.0;
 pub(crate) const RAIL_LABELS_ENTER_MS: f32 = 130.0;
@@ -241,5 +247,93 @@ impl Presence {
                     PointerEvents::None
                 }
             })
+    }
+}
+
+/// A value eased toward a target on the frame clock, for a layout size that
+/// must lay out on every frame (a pane's width), where a native transform cannot
+/// stand in. A later target takes over from the value reached.
+#[derive(Clone, Copy)]
+pub(crate) struct Tween {
+    value: Signal<f32>,
+    run: Stored<u64>,
+}
+
+impl Tween {
+    pub(crate) fn new(value: f32) -> Self {
+        Self {
+            value: signal(value),
+            run: stored(0),
+        }
+    }
+
+    pub(crate) fn get(self) -> f32 {
+        self.value.get()
+    }
+
+    /// Eases out (cubic) to `target` over `ms`; Reduce Motion jumps there.
+    pub(crate) fn to(self, target: f32, ms: f32) {
+        let run = self.run.get().wrapping_add(1);
+        self.run.replace(run);
+        let from = self.value.get_untracked();
+        if reduce_motion() || from == target {
+            self.value.set(target);
+            return;
+        }
+        spawn(async move {
+            let start = next_frame().await;
+            loop {
+                let now = next_frame().await;
+                if self.run.get() != run {
+                    return;
+                }
+                let t = (now.duration_since(start).as_secs_f32() * 1000.0 / ms).min(1.0);
+                let eased = 1.0 - (1.0 - t).powi(3);
+                self.value.set(from + (target - from) * eased);
+                if t >= 1.0 {
+                    return;
+                }
+            }
+        });
+    }
+}
+
+/// A page that replaces another in the same pane eases in from the side it
+/// came from: forward from the trailing edge, back from the leading one.
+#[derive(Clone, Copy)]
+pub(crate) struct PageSlide {
+    opacity: AnimatedValue,
+    offset: AnimatedValue,
+}
+
+const PAGE_MS: f32 = 220.0;
+const PAGE_OFFSET: f32 = 24.0;
+
+impl PageSlide {
+    pub(crate) fn new() -> Self {
+        Self {
+            opacity: animated_value(1.0),
+            offset: animated_value(0.0),
+        }
+    }
+
+    /// Call in the turn that swaps the page, so its first frame starts here.
+    pub(crate) fn enter(self, forward: bool) {
+        let ms = duration(PAGE_MS);
+        self.opacity.set(0.0);
+        self.offset.set(if reduce_motion() {
+            0.0
+        } else if forward {
+            PAGE_OFFSET
+        } else {
+            -PAGE_OFFSET
+        });
+        let _ = self.opacity.timing(1.0, ms, Easing::EaseOut);
+        let _ = self.offset.timing(0.0, ms, Easing::EaseOut);
+    }
+
+    pub(crate) fn surface(self, view: View) -> View {
+        view.bind_opacity(&self.opacity)
+            .bind_transform(TransformKind::TranslateX, &self.offset)
     }
 }

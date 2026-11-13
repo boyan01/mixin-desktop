@@ -158,9 +158,10 @@ impl Cells {
         let content = ui::list_row()
             .selected(selected)
             .on_press(move || {
-                if let Some(row) = row.get_untracked()
-                    && !selected()
-                {
+                if selected() {
+                    // The open chat again: back to its newest message.
+                    self.navigation.show_latest();
+                } else if let Some(row) = row.get_untracked() {
                     self.navigation.select(row);
                 }
             })

@@ -74,8 +74,12 @@ pub(in crate::chat) fn read(
     actions: Actions,
     root: Option<String>,
     room: Option<f32>,
-) -> impl IntoElement {
+) -> View {
     let navigation = use_context::<crate::navigation::ChatNavigation>();
+    // A secondary click on selectable text reaches the text before the bubble
+    // around it, so the text opens the message's menu itself; its Copy takes
+    // the selection. A forwarded record keeps its own menu on the bubble.
+    let menu_row = root.is_none().then(|| stored(row.clone()));
     let names = use_context::<MentionNames>();
     let source = stored(source.to_owned());
     let conversation = stored(row.conversation_id.clone());
@@ -97,7 +101,7 @@ pub(in crate::chat) fn read(
     let id = stored(row.message_id.clone());
     let root = stored(root);
     let open = move |url: String| open_link(actions, conversation, url);
-    view()
+    let text = view()
         .min_w_0()
         .selectable(true)
         .on_text_selection_change(move |event: &TextSelectionEvent| {
@@ -115,7 +119,15 @@ pub(in crate::chat) fn read(
                     .map(|class| view().app_class(class).into_element()),
             );
             out
-        })))
+        })));
+    match menu_row {
+        Some(row) => crate::chat::message_actions::menu(
+            move || Some(row.with(|row| row.clone())),
+            actions,
+            text,
+        ),
+        None => text,
+    }
 }
 
 fn text_frame() -> Text {

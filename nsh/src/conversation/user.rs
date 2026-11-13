@@ -182,7 +182,7 @@ fn dialog_body(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoEleme
         move || page.text(|profile| profile.full_name.clone()),
         move || page.text(|profile| profile.avatar_url.clone()),
         subtitle,
-        identity_badge(page),
+        identity_badge(page.profile),
     )
     .pb_14()
     .child(when(
@@ -464,14 +464,12 @@ pub(super) fn sidebar_relationship(state: State) -> impl IntoElement {
 }
 
 pub(super) fn sidebar_report(state: State) -> impl IntoElement {
-    ui::card().child(
-        row(
-            move || tr("Report and block…", "举报并屏蔽…"),
-            move || sidebar_confirm(state, Action::Report, report_prompt()),
-        )
-        .disabled(move || state.busy.get() || state.profile.with(Option::is_none))
-        .text_color(ui::danger),
+    row(
+        move || tr("Report and block…", "举报并屏蔽…"),
+        move || sidebar_confirm(state, Action::Report, report_prompt()),
     )
+    .disabled(move || state.busy.get() || state.profile.with(Option::is_none))
+    .text_color(ui::danger)
 }
 
 /// The whole profile, in the window's right-hand pane.
@@ -526,19 +524,14 @@ pub(super) fn profile_at(
         }
     };
     let title = move || page.destination.get().title();
-    // The first page of the flow closes the panel; every later one goes back.
-    let at_root = move || page.destination.get() == initial && page.history.with(Vec::is_empty);
-    let close_target = parts::close_button(close)
-        .disabled(page.busy)
-        .style_when(move || !at_root(), |style| style.hidden());
+    // The flow opens from chat info, so even its first page goes back.
     let back = parts::back_button(back)
         .element_ref(&back_button)
-        .disabled(page.busy)
-        .style_when(at_root, |style| style.hidden());
+        .disabled(page.busy);
     view()
         .flex_1()
         .min_h_0()
-        .child(parts::page_header(title, Some(back), Some(close_target)))
+        .child(parts::page_header(title, Some(back), None))
         .child(when(
             move || {
                 page.loading.get()
@@ -663,7 +656,7 @@ fn name_form(
 
 fn details(page: Page, apply: impl Fn(Action, String) + Copy + 'static) -> impl IntoElement {
     scroll().flex_1().min_h_0().child(
-        parts::page_body()
+        parts::grouped_page()
             .child(summary(page))
             .child(primary_rows(page))
             .child(when(
@@ -698,7 +691,7 @@ fn summary(page: Page) -> impl IntoElement {
                         .text_role(ui::TextRole::Headline)
                         .number_of_lines(2),
                 )
-                .child(identity_badge(page)),
+                .child(identity_badge(page.profile)),
         )
         .child(
             text(move || page.text(|profile| profile.identity_number.clone()))
@@ -732,9 +725,9 @@ fn summary(page: Page) -> impl IntoElement {
         ))
 }
 
-fn identity_badge(page: Page) -> impl IntoElement {
+pub(super) fn identity_badge(profile: Signal<Option<UserProfileItem>>) -> impl IntoElement {
     dynamic(move || {
-        let value = page.profile.get();
+        let value = profile.get();
         untracked(|| match value {
             Some(value) => crate::appearance::identity_badge(
                 false,
@@ -752,7 +745,7 @@ fn primary_rows(page: Page) -> impl IntoElement {
     let navigation =
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let unavailable = move || page.busy.get() || page.profile.with(Option::is_none);
-    ui::card()
+    parts::group()
         .child(when(
             move || page.id.get() != page.own_id.with(|id| id.clone()),
             move || {
@@ -847,7 +840,7 @@ fn relationship_rows(
         .disabled(page.busy)
         .text_color(ui::danger)
     };
-    ui::card()
+    let edits = parts::group()
         .child(
             row(
                 move || tr("Edit name…", "编辑名称…"),
@@ -865,6 +858,19 @@ fn relationship_rows(
                 .disabled(deactivated)
             },
         ))
+        .child(when(blocked, move || {
+            row(
+                move || tr("Unblock…", "取消屏蔽…"),
+                move || {
+                    page.confirm_then(unblock_prompt(), move || {
+                        apply(Action::Unblock, String::new())
+                    })
+                },
+            )
+            .disabled(page.busy)
+        }));
+    // Destructive commands stand apart, last.
+    let destructive = parts::group()
         .child(when(
             move || !blocked() && friend(),
             move || {
@@ -879,22 +885,12 @@ fn relationship_rows(
             move || !blocked(),
             move || danger(|| tr("Block…", "屏蔽…"), block_prompt, Action::Block),
         ))
-        .child(when(blocked, move || {
-            row(
-                move || tr("Unblock…", "取消屏蔽…"),
-                move || {
-                    page.confirm_then(unblock_prompt(), move || {
-                        apply(Action::Unblock, String::new())
-                    })
-                },
-            )
-            .disabled(page.busy)
-        }))
         .child(danger(
             || tr("Report and block…", "举报并屏蔽…"),
             report_prompt,
             Action::Report,
-        ))
+        ));
+    view().gap(ui::space_lg()).child(edits).child(destructive)
 }
 
 fn remove_prompt() -> Prompt {
@@ -1101,6 +1097,7 @@ pub(super) fn groups_view(
     open: impl Fn(String) + Copy + 'static,
 ) -> View {
     view()
+        .pt(parts::top_inset())
         .flex_1()
         .min_h_0()
         .child(when(loading, || {

@@ -3,8 +3,8 @@
 use nsh_core::{element::desktop::title_bar as native_title_bar, prelude::*};
 
 use super::tokens::{
-    bubble_in, glass_bar_height, glass_blur, glass_tint_opacity, radius_full, space_lg,
-    title_bar_requested_height,
+    bubble_in, edge_fade_height, glass_bar_height, glass_blur, glass_edge, glass_tint_opacity,
+    space_lg, title_bar_requested_height,
 };
 
 /// The row the top of every pane aligns to. The native height is authoritative;
@@ -40,27 +40,67 @@ pub(crate) fn title_bar() -> View {
 /// (macOS 26 and later), a blur under a translucent tint elsewhere. Use it only
 /// for controls and navigation above content, never for content itself.
 pub(crate) fn glass<T: Styled>(element: T) -> T {
-    element
+    let element = element
         .glass_effect(nsh_core::GlassEffect::Regular)
         .backdrop_blur(glass_blur())
-        .bg(|| bubble_in().opacity(glass_tint_opacity()))
+        .border_1()
+        .border_color(glass_edge);
+    // A fill draws above the material and hides it. macOS draws Liquid Glass
+    // (26 and later) or a system material under the blur, both legible alone.
+    if cfg!(target_os = "macos") {
+        element
+    } else {
+        element.bg(|| bubble_in().opacity(glass_tint_opacity()))
+    }
 }
 
-/// A glass capsule at least the floating chat chrome's height.
+/// The corner of a glass capsule: half its height. Glass takes the radius as
+/// its shape, and a "full" radius far past the height draws it wrongly.
+pub(crate) fn glass_radius() -> Points {
+    px(glass_bar_height().0 / 2.0)
+}
+
+/// A glass capsule of the floating chat chrome's height; every capsule in a
+/// row of chrome shares it, the border included.
 pub(crate) fn glass_pill() -> View {
     glass(view())
-        .min_h(glass_bar_height())
+        .h(glass_bar_height())
         .flex_shrink_0()
         .flex_row()
         .items_center()
-        .rounded(radius_full())
+        .rounded(glass_radius())
 }
 
-/// A round glass control of the chrome's height. The glass stays on the
-/// capsule, so the button's hover and selected fills stack on its tint.
-pub(crate) fn glass_button(button: nsh_base::ButtonElement) -> View {
-    glass_pill()
-        .w(glass_bar_height())
-        .justify_center()
-        .child(button.size(glass_bar_height()))
+/// A round glass control of the chrome's height. The button is the glass, so
+/// its hover and selected fills draw on the material.
+pub(crate) fn glass_button(button: nsh_base::ButtonElement) -> nsh_base::ButtonElement {
+    glass(button)
+        .size(glass_bar_height())
+        .flex_shrink_0()
+        .rounded(glass_radius())
+}
+
+/// The scroll edge effect of a scrolling region: a thin band at its very edge
+/// where the page's color (`color`) fades to fully transparent, so content
+/// leaves the region softly instead of being cut. Only the edge: the scroll
+/// padding under floating chrome stays clear. Place it in a parent pinned to
+/// that edge, behind the chrome.
+pub(crate) fn edge_fade(top: bool, color: impl Fn() -> AdaptiveColor + Copy + 'static) -> View {
+    let fade = view()
+        .absolute()
+        .left_0()
+        .right_0()
+        .h(edge_fade_height())
+        .pointer_events(nsh_core::PointerEvents::None);
+    // The shape first: the stops apply to the gradient it declares.
+    let fade = if top {
+        fade.top_0().bg_linear_to_b()
+    } else {
+        fade.bottom_0().bg_linear_to_t()
+    };
+    // Eased: most of the color goes in the first third, then it tails off.
+    fade.gradient_from(color)
+        .gradient_via(move || color().opacity(0.3))
+        .gradient_via_position(percentage(0.35))
+        .gradient_to(move || color().opacity(0.0))
 }

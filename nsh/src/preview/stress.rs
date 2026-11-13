@@ -59,12 +59,7 @@ pub(super) fn messages(actions: Actions) -> View {
         }
         list.highlight
             .set(history.with(|rows| Some(rows[target].message_id.clone())));
-        list.highlight_opacity.set(1.0);
-        let _ = list.highlight_opacity.timing(
-            0.0,
-            crate::motion::duration(1200.0),
-            nsh_core::animation::Easing::EaseOut,
-        );
+        spawn(chat::blink(list.highlight_opacity));
     };
     // A quote a screen or two up: the reader follows the scroll.
     actions.on("JumpNear", reset, move || jump(NEAR));

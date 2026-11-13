@@ -66,7 +66,7 @@ pub(super) fn bar(
                     .min_h_0()
                     .h_full()
                     .flex_shrink(1.0)
-                    .rounded(ui::radius_full())
+                    .rounded(ui::glass_radius())
                     .pl_1()
                     .pr_4()
                     .py_0()
@@ -167,12 +167,6 @@ pub(super) fn bar(
             ui::Icon::Search,
             Key::SearchMessages,
             Panel::Search,
-        ))
-        .child(panel_toggle(
-            navigation,
-            ui::Icon::InfoCircle,
-            Key::ChatInfo,
-            Panel::Info,
         ))
 }
 

@@ -24,8 +24,16 @@ use query::{Load, Window};
 const REFRESH_INTERVAL: Duration = Duration::from_millis(60);
 /// The most rows a jump scrolls through; past them a reader cannot follow the
 /// motion, so the target is placed at once and its rows ease in instead.
-const SCROLL_JUMP_ROWS: usize = 40;
+/// A long animated scroll also crosses rows the list has only estimated, and
+/// overshoots the end as they measure; Flutter scrolls at most about two
+/// viewports for the same reason.
+const SCROLL_JUMP_ROWS: usize = 12;
 const REVEAL_OFFSET: f32 = 24.0;
+/// A far jump starts this share of the viewport away from its target and
+/// scrolls the rest, at most `JUMP_TRAVEL_MAX`, as Flutter's restore does.
+const JUMP_TRAVEL: f32 = 0.5;
+const JUMP_TRAVEL_MAX: f32 = 480.0;
+const SETTLE_BOUND: Duration = Duration::from_millis(1500);
 /// Where a jump target lands. NSH mirrors view_position for an inverted list:
 /// 0.8 puts the target near Flutter's 0.2 focus anchor measured from the top.
 pub(crate) const FOCUS: f32 = 0.8;
@@ -59,6 +67,10 @@ pub(crate) struct Reveal {
     offset: nsh_core::element::AnimatedValue,
     /// False from `hide` until `show`: the rows are not on screen.
     shown: Signal<bool>,
+    /// The list's viewport height, for a far jump's travel.
+    height: Stored<f32>,
+    /// The scroll padding under the newest row, where the composer floats.
+    bottom: Stored<f32>,
 }
 
 impl Reveal {
@@ -67,7 +79,29 @@ impl Reveal {
             opacity: animated_value(1.0),
             offset: animated_value(0.0),
             shown: signal(true),
+            height: stored(0.0),
+            bottom: stored(0.0),
         }
+    }
+
+    /// Records the list's viewport height.
+    pub(crate) fn measure(self, height: f32) {
+        self.height.replace(height);
+    }
+
+    /// Records the scroll padding under the newest row.
+    pub(crate) fn measure_bottom(self, height: f32) {
+        self.bottom.replace(height);
+    }
+
+    /// Scrolls to the newest row with its padding below it in view. The list
+    /// is inverted: a positive view offset raises the row from the bottom.
+    fn to_latest(self, history: ElementRef, animated: bool) {
+        history.scroll_to_index(0, percentage(0.0), px(self.bottom.get()), animated);
+    }
+
+    fn travel(self) -> f32 {
+        (self.height.get() * JUMP_TRAVEL).min(JUMP_TRAVEL_MAX)
     }
 
     fn hide(self) {
@@ -121,13 +155,87 @@ pub(crate) fn place(
     current: impl Fn() -> bool + 'static,
 ) {
     reveal.hide();
+    // Rows that replace rows in view start a short way off on the side they
+    // came from and scroll the rest, so the reader sees which way they went.
+    let travel = from
+        .filter(|_| !reduce_motion())
+        .map(|older| {
+            if older {
+                reveal.travel()
+            } else {
+                -reveal.travel()
+            }
+        })
+        .filter(|travel| *travel != 0.0);
     after_answer(move || {
-        if current() {
-            history.scroll_to_index(index as u32, percentage(position), Points::ZERO, false);
+        let live = current();
+        if live {
+            history.scroll_to_index(
+                index as u32,
+                percentage(position),
+                px(travel.unwrap_or(0.0)),
+                false,
+            );
         }
         // Shown even when superseded: a later jump may not hide it again.
-        after_answer(move || reveal.show(from));
+        after_answer(move || match travel {
+            Some(_) if live => {
+                reveal.show(None);
+                history.scroll_to_index(index as u32, percentage(position), Points::ZERO, true);
+            }
+            _ => reveal.show(from),
+        });
     });
+}
+
+/// Shows the newest rows after they replaced rows the reader saw: the list
+/// starts a short way up its history and scrolls down to the newest row.
+fn place_latest(history: ElementRef, reveal: Reveal, current: impl Fn() -> bool + 'static) {
+    reveal.hide();
+    let travel = (!reduce_motion())
+        .then(|| reveal.travel())
+        .filter(|travel| *travel > 0.0);
+    after_answer(move || {
+        let live = current();
+        if live {
+            // The newest row a travel's height below its place: the viewport
+            // starts up in the history and scrolls down to it.
+            history.scroll_to_index(
+                0,
+                percentage(0.0),
+                px(reveal.bottom.get() - travel.unwrap_or(0.0)),
+                false,
+            );
+        }
+        after_answer(move || match travel {
+            Some(_) if live => {
+                reveal.show(None);
+                reveal.to_latest(history, true);
+            }
+            _ => reveal.show(Some(false)),
+        });
+    });
+}
+
+/// Shows a jump's highlight, holds it, then fades it. Resolves false when a
+/// later blink or set takes the value over.
+pub(crate) fn blink(
+    opacity: nsh_core::element::AnimatedValue,
+) -> impl std::future::Future<Output = bool> {
+    use nsh_core::animation::Easing;
+    opacity.set(1.0);
+    // The hold is reading time, not motion: Reduce Motion keeps it.
+    let held = opacity.timing(1.0, crate::motion::JUMP_HIGHLIGHT_HOLD_MS, Easing::Linear);
+    async move {
+        held.await
+            && opacity
+                .timing(
+                    0.0,
+                    crate::motion::duration(crate::motion::JUMP_HIGHLIGHT_FADE_MS),
+                    Easing::EaseOut,
+                )
+                .await
+    }
 }
 
 /// How a read's rows reach the list, across its splice phases.
@@ -166,6 +274,9 @@ pub(super) struct Timeline {
     visible_anchor: Signal<Option<String>>,
     following_tail: Signal<bool>,
     show_latest: Signal<bool>,
+    /// The reader asked for the latest rows: the jump button stays hidden
+    /// while the list scrolls there, instead of flickering at its threshold.
+    settling: Stored<bool>,
     pub reveal: Reveal,
 }
 
@@ -205,6 +316,7 @@ impl Timeline {
             visible_anchor: signal(None),
             following_tail: signal(true),
             show_latest: signal(false),
+            settling: stored(false),
             reveal: Reveal::new(),
         };
         effect(move || {
@@ -255,12 +367,7 @@ impl Timeline {
         });
         effect(move || {
             if state.highlight.get().is_some() {
-                state.highlight_opacity.set(1.0);
-                let finished = state.highlight_opacity.timing(
-                    0.0,
-                    crate::motion::duration(crate::motion::JUMP_HIGHLIGHT_MS),
-                    nsh_core::animation::Easing::EaseOut,
-                );
+                let finished = blink(state.highlight_opacity);
                 spawn(async move {
                     if finished.await {
                         state.highlight.set(None);
@@ -518,14 +625,11 @@ impl Timeline {
             let current = move || self.position_revision.get_untracked() == revision;
             match distance.map(|distance| Motion::for_jump(distance, true)) {
                 // Newer rows replace the ones in view: they come up from below.
-                Some(Motion::Place { .. }) => {
-                    place(self.history, self.reveal, 0, 0.0, Some(false), current);
-                }
+                Some(Motion::Place { .. }) => place_latest(self.history, self.reveal, current),
                 motion => after_answer(move || {
                     if current() {
                         let animated = motion.is_some() && !reduce_motion();
-                        self.history
-                            .scroll_to_index(0, percentage(0.0), Points::ZERO, animated);
+                        self.reveal.to_latest(self.history, animated);
                     }
                 }),
             }
@@ -590,6 +694,12 @@ impl Timeline {
         let distance =
             (event.content_size.height.0 - event.size.height.0 - event.offset.y.0).max(0.0);
         self.following_tail.set(distance <= 50.0);
+        if self.settling.get() {
+            if distance <= 50.0 {
+                self.settling.replace(false);
+            }
+            return;
+        }
         self.show_latest.set(distance > 96.0);
     }
 
@@ -614,6 +724,12 @@ impl Timeline {
         self.schedule(Load::Newer, false);
     }
     fn latest(self) {
+        self.show_latest.set(false);
+        self.settling.replace(true);
+        // Bounds a scroll the reader takes over before it reaches the end.
+        set_timeout(SETTLE_BOUND, move || {
+            self.settling.replace(false);
+        });
         self.highlight.set(None);
         let source = self.return_target.get_untracked();
         self.return_target.set(None);
@@ -650,47 +766,6 @@ impl Timeline {
             }))
     }
 
-    /// Floats over the rows: a page load must not resize the list it extends,
-    /// and a background refresh has nothing to report.
-    pub fn paging_indicator(self, i18n: I18n) -> impl IntoElement {
-        view()
-            .absolute()
-            .top_2()
-            .left_0()
-            .right_0()
-            .items_center()
-            .pointer_events(PointerEvents::None)
-            .child(when(
-                move || {
-                    self.busy.get()
-                        && !self.loading.get()
-                        && self
-                            .last_load
-                            .with(|load| matches!(load, Load::Older | Load::Newer | Load::Jump(_)))
-                },
-                move || {
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap_2()
-                        .px_3()
-                        .py_1()
-                        .rounded(ui::radius_full())
-                        .shadow_md()
-                        .bg(ui::bubble_in)
-                        .child(ui::busy_indicator(
-                            || true,
-                            move || i18n.text(Key::LoadingMessages).into(),
-                        ))
-                        .child(
-                            text(move || i18n.text(Key::LoadingMessages))
-                                .text_role(ui::TextRole::Caption)
-                                .text_color(ui::fg_secondary),
-                        )
-                },
-            ))
-    }
-
     pub fn jump_button(self, i18n: I18n) -> impl IntoElement {
         // The button slides in and out instead of popping, but never blocks input while leaving.
         let presence = crate::motion::Presence::bottom(move || {
@@ -702,9 +777,9 @@ impl Timeline {
             move || {
                 let arrow = include_str!("../../assets/jump_current_arrow.svg")
                     .replace("fill=\"white\"", "fill=\"currentColor\"");
-                presence.surface(floating_disc().shadow_md()).child(
+                presence.surface(floating_disc()).child(
                     ui::round_button()
-                        .size_10()
+                        .size(ui::glass_bar_height())
                         .accessibility_label(move || {
                             Some(if self.return_target.with(Option::is_some) {
                                 i18n.tr("Return to message", "返回消息").into()

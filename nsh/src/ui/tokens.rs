@@ -81,6 +81,8 @@ lengths! {
 
     /// A card row.
     row_height = "control-row";
+    /// A row of a grouped page, such as chat info: an iOS cell.
+    group_row_height = "control-row-grouped";
     /// A navigation rail row.
     nav_row_height = "control-nav";
     /// A conversation-sized list cell, margins included.
@@ -161,8 +163,9 @@ lengths! {
     /// platform has no Liquid Glass, the widest pinned pill, and the chat width
     /// from which the pinned pill joins the title row.
     glass_bar_height = "glass-bar-height";
+    /// How far a scroll edge fade reaches in from the edge.
+    edge_fade_height = "edge-fade";
     glass_blur = "glass-blur";
-    glass_pin_max_width = "glass-pin-max-width";
     glass_inline_pin_width = "glass-inline-pin-width";
     /// What a bubble leaves free on the side away from its sender.
     message_far_edge = "message-far-edge";
@@ -229,6 +232,7 @@ colors! {
     surface_chat = "chat-background";
     /// Grouped rows: one tone above whichever surface it sits on.
     surface_card = "card";
+    /// A page of grouped rows, such as chat info, and the cards on it.
     /// Menus, popovers, dialogs and tooltips.
     surface_popover = "popover";
     /// The sign-in screen behind its card.
@@ -308,6 +312,8 @@ colors! {
     picker_search_fill = "picker-search-background";
     /// The frame of a field at rest.
     input_border = "input";
+    /// The rim of a glass surface, the composer's edge on every capsule.
+    glass_edge = "glass-edge";
     /// The dimming layer behind modal surfaces, dark in either appearance.
     scrim_fill = "scrim";
     viewer_background = "viewer-background";

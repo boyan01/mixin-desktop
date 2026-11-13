@@ -331,7 +331,7 @@ impl Unread {
             move || {
                 // One press target, as in Flutter: the count stands over the disc.
                 let button = ui::round_button()
-                    .w_10()
+                    .w(ui::glass_bar_height())
                     .pt_3()
                     .relative()
                     .disabled(self.marking)
@@ -353,8 +353,7 @@ impl Unread {
                     })
                     .child(
                         floating_disc()
-                            .size_10()
-                            .shadow_md()
+                            .size(ui::glass_bar_height())
                             .items_center()
                             .justify_center()
                             .child(
@@ -368,7 +367,7 @@ impl Unread {
                             .absolute()
                             .top_0()
                             .left_0()
-                            .w_10()
+                            .w(ui::glass_bar_height())
                             .items_center()
                             .child(ui::count_pill(
                                 move || {
@@ -427,15 +426,18 @@ impl Unread {
             move || {
                 let appearance = use_context::<crate::appearance::Appearance>()
                     .expect("Home provides chat appearance");
+                // A band across the timeline, as Telegram and the Flutter app draw
+                // it: content, so a tinted band rather than glass, wider than a chip so
+                // it reads as a boundary rather than a date.
                 view()
                     .items_center()
-                    .my(ui::space_xs() + ui::space_2xs())
-                    .py_1()
-                    .bg(ui::surface_pane)
+                    .my(ui::space_sm())
+                    .py(ui::space_xs())
+                    .bg(|| ui::bubble_in().opacity(ui::glass_tint_opacity()))
                     .child(
                         text(move || i18n.tr("Unread messages", "未读消息"))
                             .text_size(move || appearance.secondary_size())
-                            .text_color(ui::message_secondary),
+                            .text_color(ui::fg_secondary),
                     )
             },
         )

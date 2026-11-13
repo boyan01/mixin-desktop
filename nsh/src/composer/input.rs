@@ -31,6 +31,7 @@ enum Command {
     Changed,
     Submit,
     Picker(String),
+    Escape,
 }
 
 /// An owner-scoped input, shared only with the composer's existing commands.
@@ -39,6 +40,9 @@ pub(crate) struct Input {
     session: Stored<EditorSession>,
     picker_open: Stored<Arc<AtomicBool>>,
     pub keys: Signal<(u64, String)>,
+    /// Counts Escape pressed in the editor with no picker open: the editor
+    /// takes the key, so a shortcut bound to it never hears it.
+    pub escapes: Signal<u64>,
     submit: Stored<Option<Rc<dyn Fn()>>>,
     deferred: Stored<Vec<Rc<dyn Fn()>>>,
     commands: Stored<mpsc::UnboundedSender<Command>>,
@@ -88,6 +92,7 @@ impl Input {
             session: stored(session),
             picker_open: stored(picker_open),
             keys: signal((0, String::new())),
+            escapes: signal(0),
             submit: stored(None),
             deferred: stored(Vec::new()),
             commands: stored(commands),
@@ -131,6 +136,11 @@ impl Input {
                                     send();
                                 }
                             });
+                        }
+                    }
+                    Command::Escape => {
+                        if !self.composing() {
+                            self.escapes.update(|count| *count = count.wrapping_add(1));
                         }
                     }
                     Command::Picker(key) => self.keys.update(|(revision, current)| {
@@ -435,6 +445,10 @@ impl PluginSpec for Behavior {
         {
             let _ = self.commands.send(Command::Picker(key.key.clone()));
             return true;
+        }
+        if key.key == "Escape" && plain {
+            let _ = self.commands.send(Command::Escape);
+            return false;
         }
         if key.key == "Enter" && plain {
             let _ = self.commands.send(Command::Submit);

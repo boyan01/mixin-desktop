@@ -135,20 +135,27 @@ pub(super) fn switch(actions: Actions) -> View {
                 timeline_view(chat::preview_chrome(
                     row,
                     signal(None),
-                    view().flex_1().min_h_0().child(when(loaded, || {
-                        chat::detached_messages(
-                            fixtures::USER_ID,
-                            fixtures::messages::reply_rows(),
-                            true,
-                            fixtures::messages::mention_names(),
-                        )
-                    })),
+                    move |top, bottom| {
+                        view().flex_1().min_h_0().child(when(loaded, move || {
+                            let mut list = chat::DetachedMessages::new(signal(
+                                fixtures::messages::reply_rows(),
+                            ));
+                            list.insets = (top, bottom);
+                            chat::detached_message_list(
+                                fixtures::USER_ID,
+                                list,
+                                true,
+                                fixtures::messages::mention_names(),
+                            )
+                        }))
+                    },
+                    view(),
                 ))
             },
         )))
 }
 
-pub(super) const CHROME_ACTIONS: &[&str] = &["Long pin", "No pin", "Reset"];
+pub(super) const CHROME_ACTIONS: &[&str] = &["Long pin", "No pin", "New message", "Reset"];
 
 /// The glass chrome over a timeline. The pin joins the title row from
 /// `glass-inline-pin-width`; narrow the viewport to see it take its own row.
@@ -171,15 +178,31 @@ pub(super) fn chrome(actions: Actions) -> View {
         .into_iter()
         .find(|row| row.category == "GROUP")
         .expect("the stress rows include a group");
+    let mut list = chat::DetachedMessages::new(signal(fixtures::messages::reply_rows()));
+    // A message arrives at the tail, as the timeline adds one.
+    actions.on(
+        "New message",
+        move || list.messages.set(fixtures::messages::reply_rows()),
+        move || {
+            let mut row = fixtures::messages::reply_rows()[0].clone();
+            row.message_id = "00000000-0000-4000-8000-00000000a11e".into();
+            row.content = "刚收到的新消息".into();
+            list.messages.update(|rows| rows.insert(0, row));
+        },
+    );
     timeline_view(chat::preview_chrome(
         row,
         pin,
-        chat::detached_messages(
-            fixtures::USER_ID,
-            fixtures::messages::reply_rows(),
-            true,
-            fixtures::messages::mention_names(),
-        ),
+        move |top, bottom| {
+            list.insets = (top, bottom);
+            chat::detached_message_list(
+                fixtures::USER_ID,
+                list,
+                true,
+                fixtures::messages::mention_names(),
+            )
+        },
+        super::composer::editor(false, actions),
     ))
 }
 

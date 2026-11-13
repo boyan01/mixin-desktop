@@ -178,7 +178,7 @@ pub(super) fn quoted(
         row.quote_user_membership.clone(),
     );
     let valid = quote.valid;
-    let card = card(quote, actions, false);
+    let card = card(quote, actions);
     if !valid {
         return card.into_element();
     }
@@ -218,79 +218,126 @@ pub(super) fn reply_bar(
     actions: Actions,
     focus_input: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    when(
-        move || actions.quote.with(Option::is_some),
-        move || {
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .mx_3()
-                .py_2()
-                .border_b_1()
-                .border_color(ui::hairline)
-                .child(dynamic(move || {
-                    actions.quote.with(|row| {
-                        row.as_ref()
-                            .map(|row| {
-                                let id = row.message_id.clone();
-                                let conversation = row.conversation_id.clone();
-                                let navigation = use_context::<crate::navigation::ChatNavigation>()
-                                    .expect("Home provides chat navigation");
-                                ui::command()
-                                    .p_0()
-                                    .min_h_0()
-                                    .min_w_0()
-                                    .flex_1()
-                                    .justify_start()
+    // The quote stays shown while the bar fades out, after the reply is cancelled.
+    let shown = signal_with(actions.quote.get_untracked(), SignalEquals::Never);
+    effect(move || {
+        if let Some(row) = actions.quote.get() {
+            shown.set(Some(row));
+        }
+    });
+    // One move: the bar's height and its fade follow one progress, so the
+    // composer grows while the bar comes in. Clipped to that height and bottom
+    // aligned, the bar rises from the input and never covers it.
+    let progress = crate::motion::Tween::new(if shown.with_untracked(Option::is_some) {
+        1.0
+    } else {
+        0.0
+    });
+    effect(move || {
+        let open = actions.quote.with(Option::is_some);
+        untracked(|| {
+            progress.to(
+                if open { 1.0 } else { 0.0 },
+                if open {
+                    crate::motion::REPLY_ENTER_MS
+                } else {
+                    crate::motion::REPLY_EXIT_MS
+                },
+            )
+        });
+    });
+    effect(move || {
+        if progress.get() == 0.0 && actions.quote.with_untracked(Option::is_none) {
+            shown.set(None);
+        }
+    });
+    let height = signal(0.0_f32);
+    view()
+        .overflow_hidden()
+        .justify_end()
+        .h(move || px(height.get() * progress.get()))
+        .opacity(move || progress.get())
+        .child(when(
+            move || shown.with(Option::is_some),
+            move || {
+                view()
+                    .flex_shrink_0()
+                    .on_layout(move |bounds: &Bounds<Points>| height.set(bounds.size.height.0))
+                    .child(
+                        view()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .mx_2()
+                            .mt_2()
+                            .child(dynamic(move || {
+                                shown.with(|row| {
+                                    row.as_ref()
+                                        .map(|row| {
+                                            let id = row.message_id.clone();
+                                            let conversation = row.conversation_id.clone();
+                                            let navigation =
+                                                use_context::<crate::navigation::ChatNavigation>()
+                                                    .expect("Home provides chat navigation");
+                                            ui::command()
+                                                .p_0()
+                                                .min_h_0()
+                                                .min_w_0()
+                                                .flex_1()
+                                                .justify_start()
+                                                .accessibility_label(move || {
+                                                    Some(
+                                                        actions
+                                                            .i18n
+                                                            .tr("Locate in chat", "在聊天中查看")
+                                                            .into(),
+                                                    )
+                                                })
+                                                .on_press(move || {
+                                                    navigation.jump_in_selected(
+                                                        &conversation,
+                                                        id.clone(),
+                                                        None,
+                                                    );
+                                                })
+                                                .child(
+                                                    card(Quote::selected(row), actions)
+                                                        .rounded(ui::radius_md()),
+                                                )
+                                                .into_element()
+                                        })
+                                        .unwrap_or_else(|| view().hidden().into_element())
+                                })
+                            }))
+                            .child(crate::composer::surface::hinted(
+                                ui::round_button()
+                                    .size_8()
                                     .accessibility_label(move || {
-                                        Some(
-                                            actions
-                                                .i18n
-                                                .tr("Locate in chat", "在聊天中查看")
-                                                .into(),
-                                        )
+                                        Some(actions.i18n.tr("Cancel reply", "取消回复").into())
                                     })
                                     .on_press(move || {
-                                        navigation.jump_in_selected(
-                                            &conversation,
-                                            id.clone(),
-                                            None,
-                                        );
+                                        actions.quote.set(None);
+                                        focus_input();
                                     })
-                                    .child(card(Quote::selected(row), actions, true))
-                                    .into_element()
-                            })
-                            .unwrap_or_else(|| view().hidden().into_element())
-                    })
-                }))
-                .child(crate::composer::surface::hinted(
-                    ui::round_button()
-                        .size_8()
-                        .accessibility_label(move || {
-                            Some(actions.i18n.tr("Cancel reply", "取消回复").into())
-                        })
-                        .on_press(move || {
-                            actions.quote.set(None);
-                            focus_input();
-                        })
-                        .child(
-                            ui::icon(ui::Icon::Close)
-                                .size(ui::icon_md())
-                                .text_color(ui::fg_secondary),
-                        ),
-                    move || {
-                        actions
-                            .i18n
-                            .tr("Cancel reply · Esc", "取消回复 · Esc")
-                            .to_owned()
-                    },
-                ))
-        },
-    )
+                                    .child(
+                                        ui::icon(ui::Icon::Close)
+                                            .size(ui::icon_md())
+                                            .text_color(ui::fg_secondary),
+                                    ),
+                                move || {
+                                    actions
+                                        .i18n
+                                        .tr("Cancel reply · Esc", "取消回复 · Esc")
+                                        .to_owned()
+                                },
+                            )),
+                    )
+            },
+        ))
 }
 
-fn card(quote: Quote, actions: Actions, input: bool) -> View {
+/// A quote, in a message and over the composer alike.
+fn card(quote: Quote, actions: Actions) -> View {
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
     let i18n = actions.i18n;
@@ -300,23 +347,14 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
     let inset = ui::quote_bar_width();
     view()
         .min_h(ui::quote_min_height())
-        .style_when(move || input, |style| style.min_h_0())
         .min_w_0()
         .flex_1()
         .flex_row()
         .items_stretch()
-        .style_when(
-            move || !input,
-            |style| style.rounded(ui::radius_md()).bg(ui::quote_background),
-        )
+        .rounded(ui::radius_md())
+        .bg(ui::quote_background)
         .overflow_hidden()
-        .child(
-            view()
-                .w(ui::quote_bar_width())
-                .flex_shrink_0()
-                .bg(color)
-                .style_when(move || input, |style| style.w_1().rounded_full()),
-        )
+        .child(view().w(ui::quote_bar_width()).flex_shrink_0().bg(color))
         .child(
             view()
                 .flex_1()
@@ -413,20 +451,8 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                             .min_w_0()
                             .flex_1()
                             .number_of_lines(1)
-                            .text_size(move || {
-                                if input {
-                                    appearance.secondary_size()
-                                } else {
-                                    appearance.tertiary_size()
-                                }
-                            })
-                            .text_color(move || {
-                                if input {
-                                    ui::fg_secondary()
-                                } else {
-                                    ui::message_secondary()
-                                }
-                            }),
+                            .text_size(move || appearance.tertiary_size())
+                            .text_color(ui::message_secondary),
                         ),
                 ),
         )
