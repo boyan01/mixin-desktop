@@ -105,6 +105,7 @@ impl Delegate {
 pub(super) struct NativeNotifications {
     center: Retained<UNUserNotificationCenter>,
     delegate: Retained<Delegate>,
+    previous_delegate: Option<Retained<ProtocolObject<dyn UNUserNotificationCenterDelegate>>>,
 }
 
 impl NativeNotifications {
@@ -116,7 +117,14 @@ impl NativeNotifications {
         // Calling this for an unbundled command-line executable raises an
         // Objective-C exception. The bundle check must precede this call.
         let center = UNUserNotificationCenter::currentNotificationCenter();
-        if center.delegate().is_some() {
+        let previous_delegate = center.delegate();
+        // NSH installs its default delegate before mounting the Rust app.
+        // Mixin owns message delivery and click routing, so replace only that
+        // default; another Mixin instance or an unrelated delegate is an error.
+        if previous_delegate.as_deref().is_some_and(|current| {
+            let current: &AnyObject = current.as_ref();
+            current.class().name() != c"NshNotificationDelegate"
+        }) {
             return Err(Error::Native(
                 "Another notification delegate is already registered".into(),
             ));
@@ -127,7 +135,14 @@ impl NativeNotifications {
         // Flutter clears prior-process notifications during initialization.
         center.removeAllPendingNotificationRequests();
         center.removeAllDeliveredNotifications();
-        Ok((Self { center, delegate }, receiver))
+        Ok((
+            Self {
+                center,
+                delegate,
+                previous_delegate,
+            },
+            receiver,
+        ))
     }
 
     pub(super) fn permission(
@@ -320,7 +335,7 @@ impl NativeNotifications {
             .as_deref()
             .is_some_and(|current| std::ptr::eq(current, ProtocolObject::from_ref(&*self.delegate)))
         {
-            self.center.setDelegate(None);
+            self.center.setDelegate(self.previous_delegate.as_deref());
             self.center.removeAllPendingNotificationRequests();
             self.center.removeAllDeliveredNotifications();
         }
